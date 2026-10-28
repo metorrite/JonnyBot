@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.access.AccessLevel;
 import com.younglings.bot.beta.BetaGuildRepository;
 import com.younglings.bot.clanprofile.ClanProfile;
@@ -136,7 +137,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
         DataArray list = DataArray.empty();
         for (long id : ids) list.add(json(guild, id, byProfile.get(id), bySite.get(id), byLayout.get(id), inBeta.contains(id) || siteService.inBeta(id)));
         DataArray servers = DataArray.empty();
-        for (Guild g : guild.getJDA().getGuilds()) {
+        for (Guild g : Shards.guilds(guild.getJDA())) {
             servers.add(DataObject.empty().put("guildId", g.getId()).put("name", g.getName()).put("hasSite", ids.contains(g.getIdLong())));
         }
         return DataObject.empty().put("sites", list).put("servers", servers);
@@ -151,7 +152,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
     }
 
     private DataObject json(Guild home, long id, ClanProfile profile, ClanSite site, ClanSiteLayoutRepository.Summary layout, boolean inBeta) {
-        Guild known = home.getJDA().getGuildById(id);
+        Guild known = Shards.guild(home.getJDA(), id);
         Long claimedBy = siteRoles.settings(id).claimedBy();
         DataObject out = DataObject.empty().put("guildId", Long.toString(id)).put("serverName", known == null ? null : known.getName())
                 .put("botPresent", known != null).put("botless", known == null && siteService.botless(id))
@@ -210,7 +211,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
         Long to = null;
         if (raw != null && !raw.isBlank()) {
             long userId = parseId(raw);
-            Guild target = guild.getJDA().getGuildById(id);
+            Guild target = Shards.guild(guild.getJDA(), id);
             if (target == null) throw new ApiError(404, Text.of(guild, "dashboard.the_bot_isn_t_in_that_server"));
             Member member = userId == 0 ? null : DiscordLookups.memberOrSlow(target, userId);
             if (member == null || member.getUser().isBot())
@@ -264,7 +265,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
 
     DataObject testSite(Guild guild, long actor, DataObject body) {
         long id = parseId(body.getString("guildId", ""));
-        Guild target = id == 0 ? null : guild.getJDA().getGuildById(id);
+        Guild target = id == 0 ? null : Shards.guild(guild.getJDA(), id);
         if (target == null) throw new ApiError(404, Text.of(guild, "dashboard.the_bot_isn_t_in_that_server"));
         if (profiles.get(id).map(ClanProfile::slug).filter(s -> !s.isBlank()).isEmpty()) {
             String name = target.getName().strip();

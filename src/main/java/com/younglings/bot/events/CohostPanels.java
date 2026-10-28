@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.BotListener;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.clanprofile.ClanProfile;
@@ -122,7 +123,7 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
     String hostName(long hostGuildId) {
         String listed = profiles.get(hostGuildId).filter(p -> p.visibility() == ClanProfile.Visibility.PUBLIC).map(ClanProfile::displayName).filter(n -> n != null && !n.isBlank()).orElse(null);
         if (listed != null) return listed;
-        Guild guild = jda == null ? null : jda.getGuildById(hostGuildId);
+        Guild guild = jda == null ? null : Shards.guild(jda, hostGuildId);
         return guild == null ? "the host's server" : guild.getName();
     }
 
@@ -144,7 +145,7 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
     }
 
     private TextChannel channelOf(Panel p) {
-        Guild guild = jda == null ? null : jda.getGuildById(p.guildId());
+        Guild guild = jda == null ? null : Shards.guild(jda, p.guildId());
         return guild == null || p.channelId() == null ? null : guild.getTextChannelById(p.channelId());
     }
 
@@ -273,7 +274,7 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
             Containers.replyEphemeral(interaction, Containers.WARNING, Text.of(interaction, "events.signups_for_have_closed", event.name()));
             return;
         }
-        Guild host = interaction.getJDA().getGuildById(event.guildId());
+        Guild host = Shards.guild(interaction.getJDA(), event.guildId());
         if (host == null) {
             Containers.replyEphemeral(interaction, Containers.WARNING, Text.of(interaction, "events.the_host_server_can_t_be"));
             return;

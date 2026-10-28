@@ -136,3 +136,52 @@ Drake asked to "revisit everything" once all slices were done, then (2026-10-20)
 | E23 | One pending verification at a time; deny = REJECTED; receipts on | **Keep** | Simple to review | none |
 
 Live Discord testing of slices 2-8 stays the script in `docs/LIVE-TEST-SCRIPT.md` (Drake runs it; the dev bot is in the real server).
+
+## Board update rules (T-650)
+
+When and how the bot posts a bingo's board, per event, in `config.updates` (`BoardUpdates`). Every part is "as today" or off until an organiser changes it on the event manager's **Updates** section, so an existing bingo behaves exactly as before.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `mode` | `LIVE` | `LIVE`: the board is redrawn a few seconds after each approval (today). `BATCHED`: at most once every `everyMinutes` (5 to 720, default 30). `DAILY`: once a day at the daily reset (00:00 UTC). Only approvals and tracked progress are held back: a start, a finish, a settings change or the dashboard's refresh button always redraw at once. |
+| `recap` | off | After each reset, a recap of the day that ended: the tiles finished that day and the top 3. When the event hides its standings (`STAFF`, or `HIDDEN_UNTIL_END` while it runs) the recap lists the tiles without who finished them and leaves the top 3 out. A day with no finished tile posts nothing. Posted at most 2 hours late if the bot was down at reset. |
+| `firstLine` | off | Announces the first team or player to finish a line (any row, column, diagonal or shape group that has a bonus). |
+| `firstBlackout` | off | Announces the first team or player to finish every tile. |
+| `firstTile` | off | Announces the first time anyone finishes each tile (one post per tile). |
+| `channelId` | none | Where recaps and milestones go. Without one: the event's announcements channel if the bot made it, else the live board channel. |
+
+How it works:
+
+- `EventBoardPanels` holds a board back (`afterPause`) and a one-minute check on its own `BotScheduler` lane redraws it when due (`flushHeld`). What is held is kept in memory; after a restart the next approval holds it again.
+- `EventBoardUpdates` checks milestones a few seconds after progress and posts recaps after the reset, on its own lane. Each post is noted in `younglings.event_update_post` (by key: `recap:<day>`, `line`, `blackout`, `tile:<key>`) before it is handed to the Discord outbox (`EventUpdatePostJob`, kind `event.update.post`, never repeated after an unclear failure), so nothing is posted twice. Posts carry names, never mentions, and allow none.
+- While the event hides its standings no milestone is announced (or noted as posted), since each one names who is ahead.
+- `updates` is saved only through its own route: a settings save (`PUT events/{id}`) or a re-rolled board keeps what was there (`EventService.keepUpdates`).
+- A milestone reached more than 6 hours ago is never announced, so switching a milestone on mid-event doesn't post old news.
+- A bot that is not live (`/dev toggleposting` off) holds back nothing and posts no recap or milestone.
+- Routes: `GET/PUT events/{id}/updates` (`EventUpdatesApi`: the rules in words, a preview of each post, when a held-back board is next drawn, the latest posts). The player's event page (`/internal/me/events/detail`) gets `updates` (the rules in words and the latest posts) when an event uses anything but the defaults or has posted something.
+- Tests: `BoardUpdatesTest` (pure rules), `EventBoardUpdateRulesTest` (every rule on a pretend Discord server), `EventUpdatesApiTest` (the routes and the post table).
+
+## Ways to win (T-649)
+
+How an event is won, per event, in `config.win` (`WinModes`). An event that never saved it is won on points exactly as before; every other way is an organiser's choice on the event manager's **How it's won** tab.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `mode` | `POINTS` | `POINTS`: the standings decide the places (today). `DRAW`: the bot draws winners among everyone who qualified. `FIRST_LINE` / `FIRST_BLACKOUT` (bingo only): places go in the order teams or players first finished a line (any bonus group but the whole board) or every tile. |
+| `entries` | `PER_TILE` | Draw only. `PER_TILE`: one entry per finished tile. `PER_PLAYER`: one entry each (one per team in a team event). |
+| `minTiles` | 1 | Draw only. Finished tiles needed to qualify (1 to 1000). |
+| `winners` | 1 | Draw only. How many the draw picks: places 1 to N (up to 25). |
+| `autoDraw` | on | Draw only. The bot draws by itself at the event's end time. Staff can always press "Draw now". |
+
+How it works:
+
+- The draw reuses the giveaway's fair pick (`GiveawayDraw.pick`) over numbered entries, with a `java.util.Random` seeded from a number the bot chooses. Entries are listed in a fixed order (subject keys sorted, each one's entries together); the seed and the list are saved with the draw (`younglings.event_draw`, one row per round) and shown on the event page and in the post, so anyone can re-run `WinModes.draw` and get the same winners.
+- Only tiles finished by the end time count, and only players still in the event (not on the waitlist) and teams that still exist.
+- **Automatic draw**: `EventDraws` checks every minute on its own `BotScheduler` lane (`event-draws`) for draw events past their end time (up to 2 days late, so a bot that was down catches up), drawn once (a round number is the table's key, so a "Draw now" at the same moment can't draw twice). A bot that is not live (`/dev toggleposting` off) draws nothing by itself.
+- **Draw now**: staff, from the website (`POST events/{id}/win/draw`). Allowed once the event is running, and again only if the last draw found nobody who qualified.
+- **Reroll**: for a winner who doesn't claim (`POST events/{id}/win/reroll` with `{place}`): a new winner from the same entries, never anyone drawn before; the old winner's pending awards at that place are revoked. Refused once that prize is paid.
+- **Prizes**: the draw records the winners' prizes from the event's prize list as **pending** awards (`PrizePlan`, fixed amounts or pot shares, split for teams as set); nothing is paid until staff mark an award paid. For first to a line or blackout, "Work out awards" uses the finishing order instead of the standings.
+- **Posts**: the draw and each reroll are announced where the event's update posts go (T-650: the chosen channel, the announcements channel, else the board) through the Discord outbox (`EventUpdatePostJob`, key `draw:<round>`, noted once in `event_update_post`), with names, never mentions.
+- The win rules can change until the winners are drawn or the awards worked out, and not once the event is over.
+- Routes: `GET/PUT events/{id}/win`, `POST events/{id}/win/draw`, `POST events/{id}/win/reroll` (`EventWinApi`, staff only through the dashboard). The player's event page (`/internal/me/events/detail`) gets `win` (the rules in words and the draw with its seed and entries) when the event isn't won on points.
+- Tests: `WinModesTest` (pure: every mode, the draw, rerolls, finishing order), `EventDrawsTest` (the automatic draw, Draw now, Reroll, awards and posts over Postgres), `EventWinApiTest` (the routes).

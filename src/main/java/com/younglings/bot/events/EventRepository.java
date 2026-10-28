@@ -430,7 +430,7 @@ public class EventRepository {
         List<Event> list = new ArrayList<>();
         String filter = statuses == null || statuses.isEmpty() ? "" : " AND status = ANY (?)";
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE guild_id = ?" + filter + " ORDER BY id DESC LIMIT ?")) {
+             PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE guild_id = ?" + QuickGroups.NOT_A_GROUP + filter + " ORDER BY id DESC LIMIT ?")) {
             int i = 1;
             s.setLong(i++, guildId);
             if (!filter.isEmpty()) s.setArray(i++, c.createArrayOf("text", statuses.stream().map(Enum::name).toArray()));
@@ -471,7 +471,7 @@ public class EventRepository {
 
     public int countOpen(long guildId) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.event WHERE guild_id = ? AND status NOT IN ('DONE', 'CANCELLED')")) {
+             PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.event WHERE guild_id = ? AND status NOT IN ('DONE', 'CANCELLED')" + QuickGroups.NOT_A_GROUP)) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
@@ -593,7 +593,7 @@ public class EventRepository {
     /** Events (in every server) in {@code status}, for sweeps that act on all of them. */
     public List<Event> eventsInStatus(Status status) {
         List<Event> list = new ArrayList<>();
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE status = ? ORDER BY id")) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE status = ?" + QuickGroups.NOT_A_GROUP + " ORDER BY id")) {
             s.setString(1, status.name());
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) list.add(mapEvent(rs));
@@ -748,7 +748,7 @@ public class EventRepository {
         List<Event> list = new ArrayList<>();
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
                 SELECT e.* FROM younglings.event e JOIN younglings.event_participant p ON p.event_id = e.id
-                WHERE e.guild_id = ? AND p.user_id = ? AND e.status <> 'DRAFT' ORDER BY e.id DESC LIMIT ?""")) {
+                WHERE e.guild_id = ? AND p.user_id = ? AND e.status <> 'DRAFT' AND e.template <> 'quick-group' ORDER BY e.id DESC LIMIT ?""")) {
             s.setLong(1, guildId);
             s.setLong(2, userId);
             s.setInt(3, limit);
@@ -766,7 +766,7 @@ public class EventRepository {
         List<Event> list = new ArrayList<>();
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
                 SELECT e.* FROM younglings.event e JOIN younglings.event_participant p ON p.event_id = e.id
-                WHERE p.user_id = ? AND e.status NOT IN ('DRAFT', 'CANCELLED') AND NOT e.archived ORDER BY e.starts_at DESC NULLS FIRST, e.id DESC LIMIT ?""")) {
+                WHERE p.user_id = ? AND e.status NOT IN ('DRAFT', 'CANCELLED') AND NOT e.archived AND e.template <> 'quick-group' ORDER BY e.starts_at DESC NULLS FIRST, e.id DESC LIMIT ?""")) {
             s.setLong(1, userId);
             s.setInt(2, limit);
             try (ResultSet rs = s.executeQuery()) {

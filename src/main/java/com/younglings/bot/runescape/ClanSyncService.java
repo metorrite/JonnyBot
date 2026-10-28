@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollOutcome;
@@ -136,6 +137,15 @@ public class ClanSyncService {
      * there. The clan is still fetched and polled once for the whole group.
      */
     public Map<Long, SyncResult> syncAndPollGroup(List<Guild> guilds, List<Long> botlessGuildIds) {
+        return syncAndPollGroup(guilds, botlessGuildIds, false);
+    }
+
+    /**
+     * {@link #syncAndPollGroup(List, List)}, saying whether this is the daily background run. A background run on a bot that is not live leaves
+     * the servers' Member/Guest roles alone ({@link AutoPostRouter#skipSweep}, T-187): it would give and take roles in the real server by itself.
+     * An admin's "sync now" still applies them.
+     */
+    public Map<Long, SyncResult> syncAndPollGroup(List<Guild> guilds, List<Long> botlessGuildIds, boolean background) {
         Map<Long, SyncResult> results = new HashMap<>();
         if (guilds.isEmpty() && botlessGuildIds.isEmpty()) return results;
 
@@ -193,7 +203,7 @@ public class ClanSyncService {
             RosterChange change = entry.getValue();
             try {
                 Set<String> maybeRenamed = detectRenames(guild, change, newMemberResults);
-                applyMembershipRoles(guild, change, maybeRenamed);
+                if (!background || !AutoPostRouter.skipSweep("clan sync roles")) applyMembershipRoles(guild, change, maybeRenamed);
                 log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} up to date.",
                         clanName, guild.getIdLong(), roster.size(), change.newLower().size(), change.departedLower().size(), tally.polled(), roster.size());
                 results.put(guild.getIdLong(), new SyncResult(roster.size(), change.newLower().size(), change.departedLower().size(), tally.polled(), tally.pollFailed()));

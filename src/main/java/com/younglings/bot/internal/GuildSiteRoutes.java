@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -64,7 +65,7 @@ public class GuildSiteRoutes implements InternalRouteModule {
         int slash = rest.indexOf('/');
         if (slash <= 0 || !rest.substring(0, slash).equals(Long.toString(home))) return new Answer(404, error("Not found"));
         String route = rest.substring(slash + 1);
-        Guild guild = jda == null ? null : jda.getGuildById(home);
+        Guild guild = jda == null ? null : Shards.guild(jda, home);
         if (guild == null) return new Answer(503, error("Guild not available yet"));
         DataObject data = siteApi.home(guild, route, exchange);
         return data == null ? new Answer(404, error("Not found")) : new Answer(200, data);

@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.commands.signup.SignupEntry;
 import com.younglings.bot.commands.signup.SignupService;
@@ -82,7 +83,7 @@ public class EventSignups {
         JDA client = jda;
         if (client == null) return;
         try {
-            Guild guild = client.getGuildById(change.guildId());
+            Guild guild = Shards.guild(client, change.guildId());
             Event event = repository.event(change.guildId(), change.eventId()).orElse(null);
             if (guild == null || event == null || event.signupId() == null || signups.getSessionById(event.signupId()) == null) return;
             long signupId = event.signupId();
@@ -265,7 +266,7 @@ public class EventSignups {
         for (Event event : repository.eventsInStatus(Status.SIGNUPS)) {
             Instant closes = settingsOf(event).signupClosesAt();
             if (closes == null || Instant.now().isBefore(closes) || repository.setup(event.id()).signupsClosed()) continue;
-            Guild guild = jda.getGuildById(event.guildId());
+            Guild guild = Shards.guild(jda, event.guildId());
             if (guild == null) continue;
             try {
                 Closed closed = closeSignups(guild, event.id(), jda.getSelfUser().getIdLong());
@@ -313,7 +314,7 @@ public class EventSignups {
             closePastDeadline(jda);
             releaseQuotas();
             for (Event event : repository.eventsWithSignup()) {
-                Guild guild = jda.getGuildById(event.guildId());
+                Guild guild = Shards.guild(jda, event.guildId());
                 if (guild == null) continue;
                 try {
                     switch (event.status()) {
