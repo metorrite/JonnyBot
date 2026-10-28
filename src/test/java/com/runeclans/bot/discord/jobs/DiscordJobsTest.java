@@ -86,6 +86,10 @@ class DiscordJobsTest {
 
         when(manager.getShardById(holderId)).thenReturn(holder);
         when(holder.isUnavailable(guildId)).thenReturn(false);
+        when(holder.getStatus()).thenReturn(JDA.Status.LOADING_SUBSYSTEMS);
+        assertThrows(DiscordJobs.RetryLater.class, () -> DiscordJobs.guild(local, job), "its shard is still connecting: its server list isn't loaded");
+
+        when(holder.getStatus()).thenReturn(JDA.Status.CONNECTED);
         assertThrows(DiscordJobs.Refused.class, () -> DiscordJobs.guild(local, job), "a server no shard holds is really gone");
     }
 

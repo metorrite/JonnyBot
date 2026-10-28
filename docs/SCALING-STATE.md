@@ -14,6 +14,8 @@ Nothing here changes behaviour. It is the checklist the later steps work from.
 | **B2** roles: `BOT_ROLE=gateway` and `BOT_ROLE=api` (default `all` = today) | *gateway*: Discord login, events, interactions, outbox drain. *api*: internal HTTP API and gateway-free schedules | gateway 1, api 2-3 behind a load balancer |
 | **B3** shard sets: several gateway processes, each `SHARD_RANGE` of `SHARD_COUNT` | as B2, with one gateway process per shard set | gateway N, api 2-3 |
 
+`BOT_ROLE` exists since T-670 (`config/BotRole`, `discord/RestOnlyJda`): `gateway` skips the internal API, `api` logs in REST-only and only queues outbox jobs. A process started as `gateway` or `api` refuses to start until every lane names its owner (T-702, `BotRole.splitReady()`).
+
 Under B1 nothing in this list breaks: a `ShardManager` in one JVM still sees every server. The decisions below matter for B2 and B3.
 
 ## 2. Decision key
@@ -51,7 +53,7 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 | Follow-up | Covers | Work | Status |
 |---|---|---|---|
 | F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | open |
-| F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | open |
+| F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | done (T-696): each process claims under its own `ProcessId`, refreshes its claims every 20 s on the `discord-job-claims` lane, and any process recovers claims not refreshed for 2 min (never its own); claims are filtered to the shards the process runs |
 | F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (#473) |
 | F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | done (T-698): `jobs/JobRepository` keeps each slot's latest job in `younglings.dashboard_job` (an event's roles/channels and wrap-up steps, a server's role fix); a new job claims its slot under `pg_advisory_xact_lock`, a running job beats every 30 s and one silent for 2 minutes reads as failed and frees the slot. Finished exports live in `younglings.event_export_file` for an hour. The in-process `ReentrantLock` stays only to keep a job and that process's own role sync apart |
 | F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | done (T-699) |
@@ -200,7 +202,7 @@ has more than one replica).
 | `rsnlink-hub-dm` | `rsnlink/bridge/HubDmButtons` | gateway (own shards) |
 | `runeclans-feed` | `runeclans/RuneClansFeedPoller` | api (cursor in Postgres); posts through the outbox |
 | `hub-sites` | `hubsites/HubSiteReporter` | gateway (own shards) |
-| `discord-jobs` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 |
+| `discord-jobs`, `discord-job-claims` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 (claims per process, done) |
 | `ephemeral-lifecycle` | `discord/EphemeralLifecycle` | gateway (the process that answered) |
 | `event-board-panels`, `cohost-panels`, `event-signups` | `events/...` | gateway (own shards) |
 | `event-announcer-sweep` | `eventannounce/EventAnnounceService` | gateway (own shards) |

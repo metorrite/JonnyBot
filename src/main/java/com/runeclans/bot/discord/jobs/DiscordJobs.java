@@ -1,5 +1,6 @@
 package com.runeclans.bot.discord.jobs;
 
+import com.runeclans.bot.discord.ShardRouting;
 import com.runeclans.bot.discord.Shards;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
@@ -57,12 +58,16 @@ public final class DiscordJobs {
         }
     }
 
-    /** The job's server; waits while Discord has it unavailable, refuses once the bot has left it. */
+    /**
+     * The job's server; refuses only once the bot has certainly left it ({@link ShardRouting#gone}), and waits while it can't tell: Discord
+     * has the server unavailable, or its shard isn't connected (yet) in this process (T-696).
+     */
     public static Guild guild(JDA jda, DiscordJob job) {
         Guild guild = Shards.guild(jda, job.guildId());
         if (guild != null) return guild;
         if (Shards.unavailable(jda, job.guildId())) throw new RetryLater(Duration.ofSeconds(30), "That server is unavailable on Discord right now; trying again soon.");
-        throw new Refused("The bot isn't in that server any more.");
+        if (ShardRouting.gone(jda, job.guildId())) throw new Refused("The bot isn't in that server any more.");
+        throw new RetryLater(Duration.ofSeconds(30), "The bot is still connecting to that server; trying again soon.");
     }
 
     /** A member of the job's server: from the cache, else asked of Discord (the job may wait; a website request never does). */

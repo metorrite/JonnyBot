@@ -111,6 +111,10 @@ public class InternalApiServer {
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         this.jda = event.getJda();
+        if (!com.runeclans.bot.config.BotRole.current().internalApi()) {
+            log.info("BOT_ROLE=gateway: the internal API runs in the api process, not here.");
+            return;
+        }
         start();
     }
 

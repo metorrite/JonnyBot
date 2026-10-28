@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -22,6 +23,11 @@ import java.util.Optional;
 /**
  * The Discord job outbox's table (T-456). Queueing is one insert, so a website request that queues a job answers at once. Taking jobs to run
  * uses {@code FOR UPDATE SKIP LOCKED}, so two bot processes (a deploy overlapping the old one) never run the same job twice.
+ *
+ * <p>Claims are per process (T-696, docs/SCALING-STATE.md M3, M4): a running job carries {@code claimed_by} (the {@link
+ * com.runeclans.bot.util.ProcessId} that took it) and {@code claimed_at}, which that process refreshes while it lives. Finishing a job only
+ * counts for the process that holds its claim, and recovery only touches jobs whose claim has expired, so a starting process never ends the
+ * jobs a live one is running.
  */
 @BService
 public class DiscordJobRepository {
@@ -66,6 +72,19 @@ public class DiscordJobRepository {
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS discord_job_waiting_key ON younglings.discord_job (dedupe_key)
                     WHERE dedupe_key IS NOT NULL AND state IN ('queued', 'retrying');
+                """,
+
+                // T-696: which process runs a job, and when it last said it still does (null on rows from before claims)
+                """
+                ALTER TABLE younglings.discord_job ADD COLUMN IF NOT EXISTS claimed_by TEXT NULL;
+                """,
+
+                """
+                ALTER TABLE younglings.discord_job ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ NULL;
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS discord_job_running ON younglings.discord_job (claimed_by) WHERE state = 'running';
                 """
         ));
     }
@@ -127,13 +146,33 @@ public class DiscordJobRepository {
         }
     }
 
-    /** Takes up to {@code limit} jobs that are due, oldest first, and marks them running. */
-    public List<DiscordJob> claimDue(int limit) {
-        String sql = "UPDATE younglings.discord_job SET state = 'running', attempts = attempts + 1, updated_at = now() WHERE id IN ("
-                + "SELECT id FROM younglings.discord_job WHERE state IN ('queued', 'retrying') AND next_attempt_at <= now() "
+    /**
+     * The shards a process runs, for claiming only the jobs of servers it can reach ({@code (guild_id >> 22) % total}, Discord's formula).
+     * {@code null} where a filter is taken means every server (one process with every shard, or no shard manager).
+     */
+    public record ShardSet(int total, List<Integer> owned) {
+        public ShardSet {
+            owned = List.copyOf(owned);
+        }
+    }
+
+    /**
+     * Takes up to {@code limit} jobs that are due, oldest first, marks them running and claims them for {@code claimant}. With {@code shards},
+     * only jobs for servers on those shards.
+     */
+    public List<DiscordJob> claimDue(String claimant, int limit, ShardSet shards) {
+        String shardFilter = shards == null ? "" : "AND ((guild_id >> 22) % ?) = ANY (?) ";
+        String sql = "UPDATE younglings.discord_job SET state = 'running', attempts = attempts + 1, claimed_by = ?, claimed_at = now(), updated_at = now() "
+                + "WHERE id IN (SELECT id FROM younglings.discord_job WHERE state IN ('queued', 'retrying') AND next_attempt_at <= now() " + shardFilter
                 + "ORDER BY next_attempt_at, id LIMIT ? FOR UPDATE SKIP LOCKED) RETURNING " + COLUMNS;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
-            s.setInt(1, limit);
+            int i = 1;
+            s.setString(i++, claimant);
+            if (shards != null) {
+                s.setLong(i++, shards.total());
+                s.setArray(i++, c.createArrayOf("bigint", shards.owned().stream().map(Integer::longValue).toArray()));
+            }
+            s.setInt(i, limit);
             List<DiscordJob> jobs = new ArrayList<>();
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) jobs.add(read(rs));
@@ -145,21 +184,36 @@ public class DiscordJobRepository {
         }
     }
 
-    public void done(long id, DataObject result) {
-        finish(id, "done", null, result);
-    }
-
-    public void failed(long id, String error) {
-        finish(id, "failed", error, null);
-    }
-
-    private void finish(long id, String state, String error, DataObject result) {
+    /** Says this process still runs the jobs it claimed: refreshes their {@code claimed_at}. How many it holds. */
+    public int heartbeat(String claimant) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = ?, last_error = ?, result = ?, updated_at = now() WHERE id = ? AND state = 'running'")) {
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET claimed_at = now() WHERE state = 'running' AND claimed_by = ?")) {
+            s.setString(1, claimant);
+            return s.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not refresh job claims", e);
+        }
+    }
+
+    /** Ends a job this process claimed as done. Does nothing when the claim is no longer this process's (it expired and was recovered). */
+    public void done(String claimant, long id, DataObject result) {
+        finish(claimant, id, "done", null, result);
+    }
+
+    /** Ends a job this process claimed as failed (same rule as {@link #done}). */
+    public void failed(String claimant, long id, String error) {
+        finish(claimant, id, "failed", error, null);
+    }
+
+    private void finish(String claimant, long id, String state, String error, DataObject result) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = ?, last_error = ?, result = ?, updated_at = now() "
+                     + "WHERE id = ? AND state = 'running' AND claimed_by = ?")) {
             s.setString(1, state);
             s.setString(2, error);
             s.setString(3, result == null ? null : result.toString());
             s.setLong(4, id);
+            s.setString(5, claimant);
             s.executeUpdate();
         } catch (SQLException e) {
             throw new IllegalStateException("Could not finish job " + id, e);
@@ -168,21 +222,24 @@ public class DiscordJobRepository {
 
     /**
      * Puts a running job back to wait until {@code at}. If a newer change with the same key was queued meanwhile, that one wins and this one
-     * ends as done: the newer change already says what the end state should be.
+     * ends as done: the newer change already says what the end state should be. Only for the process holding the job's claim.
      */
-    public void retryAt(long id, Instant at, String error, boolean rateLimit) {
+    public void retryAt(String claimant, long id, Instant at, String error, boolean rateLimit) {
         try (Connection c = connectionSupplier.getConnection()) {
             try (PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'retrying', last_error = ?, next_attempt_at = ?, waits = waits + ?, updated_at = now() "
-                    + "WHERE id = ? AND state = 'running' AND NOT EXISTS (SELECT 1 FROM younglings.discord_job o WHERE o.dedupe_key = discord_job.dedupe_key "
+                    + "WHERE id = ? AND state = 'running' AND claimed_by = ? AND NOT EXISTS (SELECT 1 FROM younglings.discord_job o WHERE o.dedupe_key = discord_job.dedupe_key "
                     + "AND o.id <> discord_job.id AND o.state IN ('queued', 'retrying'))")) {
                 s.setString(1, error);
                 s.setTimestamp(2, Timestamp.from(at));
                 s.setInt(3, rateLimit ? 1 : 0);
                 s.setLong(4, id);
+                s.setString(5, claimant);
                 if (s.executeUpdate() == 1) return;
             }
-            try (PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'done', last_error = 'Replaced by a newer change.', updated_at = now() WHERE id = ? AND state = 'running'")) {
+            try (PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'done', last_error = 'Replaced by a newer change.', updated_at = now() "
+                    + "WHERE id = ? AND state = 'running' AND claimed_by = ?")) {
                 s.setLong(1, id);
+                s.setString(2, claimant);
                 s.executeUpdate();
             }
         } catch (SQLException e) {
@@ -206,19 +263,50 @@ public class DiscordJobRepository {
     }
 
     /**
-     * After a restart: jobs left running by the old process go back to waiting (for an idempotent kind) or end as failed with a plain reason
-     * (a post might already be in the channel, so it is never sent twice by itself).
+     * Jobs left running by a process that is gone go back to waiting (for an idempotent kind) or end as failed with a plain reason (a post
+     * might already be in the channel, so it is never sent twice by itself). Gone means the claim was not refreshed for {@code expiry} (a row
+     * claimed before claims existed counts from when it was taken). A job another live process is running keeps a fresh claim and is left
+     * alone, and {@code claimant}'s own jobs never are touched: it is still running them.
      */
-    public int recover(Collection<String> idempotentKinds) {
+    public int recover(String claimant, Collection<String> idempotentKinds, Duration expiry) {
+        double seconds = expiry.toMillis() / 1000.0;
+        return endRunning("claimed_by IS DISTINCT FROM ? AND COALESCE(claimed_at, updated_at) < now() - make_interval(secs => ?)", idempotentKinds, (s, i) -> {
+            s.setString(i, claimant);
+            s.setDouble(i + 1, seconds);
+            return i + 2;
+        });
+    }
+
+    /**
+     * On a graceful shutdown: this process's own running jobs end the same way as {@link #recover} would end them later (put back or failed),
+     * so the website doesn't show them running until the claim expires. A job that finishes after this changes nothing (it is no longer
+     * running).
+     */
+    public int release(String claimant, Collection<String> idempotentKinds) {
+        return endRunning("claimed_by = ?", idempotentKinds, (s, i) -> {
+            s.setString(i, claimant);
+            return i + 1;
+        });
+    }
+
+    /** Fills the placeholders of a {@code where} clause starting at an index, and answers the next free index. */
+    private interface Binder {
+        int bind(PreparedStatement s, int index) throws SQLException;
+    }
+
+    private int endRunning(String where, Collection<String> idempotentKinds, Binder binder) {
+        String running = "state = 'running' AND " + where;
         try (Connection c = connectionSupplier.getConnection()) {
             int n;
             try (PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'retrying', next_attempt_at = now(), updated_at = now(), "
-                    + "last_error = 'The bot restarted while doing this; trying again.' WHERE state = 'running' AND kind = ANY (?)")) {
-                s.setArray(1, c.createArrayOf("text", idempotentKinds.toArray()));
+                    + "last_error = 'The bot restarted while doing this; trying again.' WHERE " + running + " AND kind = ANY (?)")) {
+                int next = binder.bind(s, 1);
+                s.setArray(next, c.createArrayOf("text", idempotentKinds.toArray()));
                 n = s.executeUpdate();
             }
             try (PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'failed', updated_at = now(), "
-                    + "last_error = 'The bot restarted while doing this, so it may or may not have happened. Check Discord before trying again.' WHERE state = 'running'")) {
+                    + "last_error = 'The bot restarted while doing this, so it may or may not have happened. Check Discord before trying again.' WHERE " + running)) {
+                binder.bind(s, 1);
                 n += s.executeUpdate();
             }
             return n;
