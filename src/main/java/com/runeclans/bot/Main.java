@@ -12,8 +12,11 @@ public class Main {
     public static void main(String[] args) {
         final var config = BotConfig.getInstance();
         // T-670: the role is known before any service is built, so every service and lane can ask BotRole.current()
-        BotRole.install(BotRole.checkedForStart(config.getRole(), GatewayForward.parse(config.getGatewayInternalUrl()) != null, CacheBus.on(),
-                config.getInternalApiSecret() != null && config.getGuildId() != null));
+        BotRole role = config.getRole();
+        if (role != BotRole.ALL) {
+            BotRole.checkedForStart(role, GatewayForward.parse(config.getGatewayInternalUrl()) != null, CacheBus.on(), internalApiSetUp(config));
+        }
+        BotRole.install(role);
 
         if(!config.getLiveEnvironment()) {
             BotCommandsRestarter.initialize(args, builder -> {
@@ -22,6 +25,15 @@ public class Main {
         }
 
         BotCommands.create(builder -> configure(builder, config));
+    }
+
+    /** Whether the internal API can start: a secret and a home server id (a {@code GUILD_ID} that isn't a number counts as missing). */
+    private static boolean internalApiSetUp(BotConfig config) {
+        try {
+            return config.getInternalApiSecret() != null && config.getGuildId() != null;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     /**

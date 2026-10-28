@@ -127,6 +127,16 @@ public class InternalApiServer {
         OpsTelemetry.context(server, path, forward == null ? handler : forward.handlerFor(path, handler, authorized));
     }
 
+    /** The api role's way to the gateway, or null (logged) when its address is unusable; start-up refuses that first (BotRole). */
+    private GatewayForward gatewayForward() {
+        try {
+            return new GatewayForward(botConfig.getGatewayInternalUrl());
+        } catch (IllegalArgumentException e) {
+            log.error("Internal API not started: GATEWAY_INTERNAL_URL is not an http(s) address with a host");
+            return null;
+        }
+    }
+
     private void start() {
         String secret = botConfig.getInternalApiSecret();
         Long guildId = botConfig.getGuildId();
@@ -144,7 +154,8 @@ public class InternalApiServer {
             int port = botConfig.getInternalApiPort();
             HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
             // T-746: the api role has no servers or members of its own, so it passes those routes on to the gateway process
-            GatewayForward forward = BotRole.current().forwardsToGateway() ? new GatewayForward(botConfig.getGatewayInternalUrl()) : null;
+            GatewayForward forward = BotRole.current().forwardsToGateway() ? gatewayForward() : null;
+            if (BotRole.current().forwardsToGateway() && forward == null) return;
             if (forward != null) log.info("BOT_ROLE=api: routes that need servers or members are answered by the gateway process");
             Predicate<HttpExchange> internal = exchange -> {
                 String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
@@ -176,7 +187,7 @@ public class InternalApiServer {
             server.setExecutor(new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(64), new ThreadPoolExecutor.CallerRunsPolicy()));
             server.start();
             log.info("Internal API listening on port {}", port);
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (IOException e) {
             log.error("Failed to start internal API server", e);
         }
     }

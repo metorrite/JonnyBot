@@ -115,9 +115,10 @@ public final class GatewayForward {
                 }
                 forward(exchange);
             } catch (RuntimeException e) {
-                // never a dropped connection: the website reads a plain answer
+                // never a dropped connection: the website reads a plain answer (a change may have been sent, so not "try again")
                 log.warn("Passing {} on to the gateway failed: {}", route, e.getClass().getSimpleName());
-                tryAgain(exchange);
+                if (reads(exchange.getRequestMethod())) tryAgain(exchange);
+                else noAnswer(exchange);
             }
         };
     }
@@ -161,7 +162,8 @@ public final class GatewayForward {
             return;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            tryAgain(exchange);
+            if (reads(exchange.getRequestMethod())) tryAgain(exchange);
+            else noAnswer(exchange);
             return;
         }
         for (Map.Entry<String, List<String>> header : answer.headers().map().entrySet()) {

@@ -230,13 +230,26 @@ class GatewayForwardTest {
             exchange.close();
         });
         HttpServer api = front(new GatewayForward(url(gateway)));
+        byte[] tooBig = new byte[GatewayForward.MAX_BODY_BYTES + 1];
 
-        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/admin/upload"))
-                .header("X-Internal-Secret", SECRET).POST(HttpRequest.BodyPublishers.ofByteArray(new byte[GatewayForward.MAX_BODY_BYTES + 1])).build(),
-                HttpResponse.BodyHandlers.ofString());
+        // with a length, and chunked (no length: the cap is applied while reading)
+        for (HttpRequest.BodyPublisher body : List.of(HttpRequest.BodyPublishers.ofByteArray(tooBig),
+                HttpRequest.BodyPublishers.fromPublisher(HttpRequest.BodyPublishers.ofByteArray(tooBig)))) {
+            int status = statusOrCutOff(HttpRequest.newBuilder(URI.create(url(api) + "/internal/admin/upload"))
+                    .header("X-Internal-Secret", SECRET).POST(body).build());
+            // the api answers before reading the rest, so the client may still be uploading when the connection closes
+            assertTrue(status == 413 || status == -1, "refused, got " + status);
+        }
+        assertNull(seen.get(), "the gateway never saw it");
+    }
 
-        assertEquals(413, answer.statusCode());
-        assertNull(seen.get());
+    /** The answer's status, or -1 when the connection was closed before the client read one. */
+    private int statusOrCutOff(HttpRequest request) throws InterruptedException {
+        try {
+            return client.send(request, HttpResponse.BodyHandlers.ofString()).statusCode();
+        } catch (IOException e) {
+            return -1;
+        }
     }
 
     @Test
