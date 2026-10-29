@@ -53,6 +53,7 @@ public final class LaneOwners {
             Map.entry("discord-job-claims", Owner.GATEWAY),
             Map.entry("weekly-digest-scheduler", Owner.GATEWAY),
             Map.entry("rsnlink-hub-dm", Owner.GATEWAY),
+            Map.entry("community-command", Owner.GATEWAY),
             Map.entry("hub-sites", Owner.GATEWAY),
             Map.entry("ephemeral-lifecycle", Owner.GATEWAY),
             Map.entry("event-board-panels", Owner.GATEWAY),

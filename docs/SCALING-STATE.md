@@ -200,6 +200,7 @@ has more than one replica).
 | `event-tracker`, `plugin-xp-tracker` | `events/EventTracker`, `events/PluginXpTracker` | api, together (shared `runeSyncPlayers`) |
 | `rsnlink-verify`, `rsnlink-retention` | `rsnlink/bridge/RsnLinkModule` | api |
 | `rsnlink-hub-dm` | `rsnlink/bridge/HubDmButtons` | gateway (own shards) |
+| `community-command` | `hubsites/CommunityCommand` | gateway (own shards) |
 | `runeclans-feed` | `runeclans/RuneClansFeedPoller` | api (cursor in Postgres); posts through the outbox |
 | `hub-sites` | `hubsites/HubSiteReporter` | gateway (own shards) |
 | `discord-jobs`, `discord-job-claims` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 (claims per process, done) |
