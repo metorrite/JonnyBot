@@ -113,9 +113,9 @@ The server is the source of truth for consent (`plugin_consent`); the plugin onl
 
 ## 11. Install, update, manifest
 
-- `plugin.json`: name `RuneSync`, version `0.1.0` for the first submission, `requiredDependencies: { "RuneLink": "RuneLink" }`, `optionalPermissions: ["httpAccess", "chatAccess", "trackingAccess"]` (http is required in practice; the panel explains each), `urls: { "jonnybot": "<API_BASE>" }`, `hasSettingsIcon: true`, contact email from 13.D6.
+- `plugin.json`: name `RuneSync`, version `0.1.0` for the first submission, `requiredDependencies: { "RuneLink": "RuneLink" }`, `optionalPermissions: ["httpAccess", "chatAccess", "trackingAccess"]` (http is required in practice; the panel explains each), `urls: { "runeclans": "<API_BASE>" }`, `hasSettingsIcon: true`, contact email from 13.D6.
 - Install from mod.io. Updates through mod.io; each release passes Jagex moderation. The server sends `minClientVersion`; an older client shows "Update RuneSync" and stops sending (never breaks the game).
-- `<API_BASE>` today is `https://api.rsyounglings.com`. If T-063 moves the API to a neutral domain, it must happen **before** the first RuneSync submission (same rule as RuneLink). Default: RuneSync keeps the RuneClan Bot API host; it is RuneClan Bot's plugin, so the neutral-domain requirement applies to RuneLink, not RuneSync.
+- `<API_BASE>` is `https://runeclans.com`: the website serves both plugins' API (`/api/ingest/v1/...` for RuneSync, `/api/link/v1/...` for RuneLink) and passes it on to the RuneClans hub when its `HUB_BASE_URL` is set, otherwise to the bot. rsyounglings.com no longer serves it.
 
 ## 12. Privacy notice (draft for the submission, to publish at `/runesync/privacy` on the RuneClan Bot site)
 
@@ -146,7 +146,7 @@ The Jagex submission form answers (permissions, Case 3 details) are filled from 
 | D11 | Presence | Category stays, not sent in v1 | No feature uses it yet |
 | D12 | Batch timing | Every 60 s, 100 events max, queue 500 persisted on shutdown | Cheap on the server; little loss on crash |
 | D13 | Retention | Keep the existing 180 days | Already built and documented |
-| D14 | Base URL | Keep `api.rsyounglings.com` for RuneSync; RuneLink alone gets the neutral domain | RuneSync is RuneClan Bot's plugin |
+| D14 | Base URL | `https://runeclans.com` for both RuneSync and RuneLink (changed from `api.rsyounglings.com`) | One site serves both plugins; rsyounglings.com is a normal clan site |
 | D15 | Version for first submission | 0.1.0 | Numbers and dots only |
 
 ## 14. Drake's actions (cannot be done for him)
