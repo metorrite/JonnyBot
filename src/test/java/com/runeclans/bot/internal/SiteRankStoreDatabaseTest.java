@@ -207,6 +207,42 @@ class SiteRankStoreDatabaseTest {
         assertEquals(7L, store.latestWeek(G).jobId());
     }
 
+    private static SiteRankAdvisor advisorWithMocks() {
+        return new SiteRankAdvisor(store, mock(SiteCockpitStore.class), mock(SiteStatsRepository.class), mock(AdminToolsStore.class),
+                mock(com.runeclans.bot.clansite.SiteRoleGuard.class), mock(DiscordOutbox.class), mock(TrackingPostingToggle.class));
+    }
+
+    @Test
+    void loadingThePageWritesNothing() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        LocalDate week = RankAdvisorRules.weekOf(now);
+        roster.upsert(G, "Zezima", "Corporal", 1_000, 0);
+        store.saveRules(G, List.of(new Rule("Sergeant", null, 30, null, null)), OWNER);
+        store.noteDue(G, List.of(new Due("zezima", "Zezima", "Recruit", "Corporal", week.minusWeeks(1))));
+        SiteCaller page = new SiteCaller(G, OWNER, null, null, null, null);
+        assertNotNull(advisorWithMocks().view(page, now));
+        assertFalse(store.turned(G, week), "only the sweep turns the week");
+        assertEquals(1, store.due(G).size(), "the page notes nobody due");
+        assertNull(store.latestWeek(G));
+    }
+
+    @Test
+    void anEmptyRosterNeverTurnsTheWeekButTheNextSweepDoes() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        LocalDate week = RankAdvisorRules.weekOf(now);
+        store.saveRules(G, List.of(new Rule("Sergeant", null, 30, null, null)), OWNER);
+        store.noteDue(G, List.of(new Due("zezima", "Zezima", "Recruit", "Corporal", week.minusWeeks(1))));
+        SiteRankAdvisor advisor = advisorWithMocks();
+        advisor.sweep(null, now);
+        assertFalse(store.turned(G, week), "a roster sync outage claims nothing");
+        assertEquals(1, store.due(G).size());
+
+        roster.upsert(G, "Zezima", "Corporal", 1_000, 0);
+        advisor.sweep(null, now);
+        assertTrue(store.turned(G, week));
+        assertEquals(List.of("Zezima"), store.latestWeek(G).promoted().stream().map(Promoted::rsn).toList());
+    }
+
     @Test
     void theCongratsPostIsOffUntilSaved() {
         assertFalse(store.congrats(G).on());
