@@ -17,7 +17,8 @@
   The .env file to write. Default: .env in the repository root (git-ignored).
 .PARAMETER PublicBaseUrl
   The address the plugin shows players. Default: http://localhost:3200/plugins/link (the RuneLink page on the local runeclans.com app,
-  the only site that has it).
+  the only site that has it). Legacy: that page talks to the RuneClans hub, not to this bot's rsnlink service, so local pairing goes
+  through the hub; this script only matters for testing the bot's old service. An existing .env keeps its old value: edit it by hand.
 #>
 param(
   [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'),

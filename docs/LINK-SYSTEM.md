@@ -1,6 +1,8 @@
 # RSN link system: design and protocol spec
 
-Ticket T-112. Status: **draft; Drake's decisions of 2026-10-19 applied (section 18)**. Build tickets T-113..T-118 follow this document; whoever finds a gap here asks rather than inventing.
+Ticket T-112. Status: **draft; Drake's decisions of 2026-10-19 applied (section 18)**.
+
+> **Superseded in part (T-276, 2026-10-28).** Links live in the RuneClans hub, not in this bot (T-162). The RuneLink pages are only on runeclans.com (`/plugins/link`); the separate link host face (`LINK_HOST`) is gone, and the website forwards the plugin API (`/api/link/v1/*`) and the pages' calls to the hub's `/v1/link/*` and `/web/link/*`, not to the bot's `/internal/rsnlink/...`. Where this document describes the link host face or the website forwarding to the bot, read it as history. The hub's copy of this document (RuneClan-API `docs/LINK-SYSTEM.md`) and its code are current. Build tickets T-113..T-118 follow this document; whoever finds a gap here asks rather than inventing.
 
 ## 0. In one paragraph
 
@@ -362,10 +364,10 @@ No clan name, no invite, no links other than the configured base URL.
 > We store your RuneScape name (and the plugin's tracking number, if you allowed it) and your Discord account id. Your Discord id is encrypted, sign-in tokens are stored only as fingerprints, and we never see your Discord password or email. Plugins that use this link only see whether you are linked and a code that is different for every plugin; they never see your Discord account. You can unlink or delete everything at any time on this page.
 
 **Config:**
-- `LINK_PUBLIC_BASE_URL` (bot and website): used for `verifyUrl`, DM text, assertions' `iss`, and the page's own links. Local: `http://localhost:3200/plugins/link` for the bot (`tools/rsnlink-dev-env.ps1` writes it), the RuneLink page on the local runeclans.com app; live: `https://runeclans.com/plugins/link`; the website may leave it unset (it falls back to `NEXTAUTH_URL` for its Discord redirect).
+- `LINK_PUBLIC_BASE_URL` means different things to its readers. **Hub** (where links live today) and the bot's legacy rsnlink service: the full address shown to the player, used for `verifyUrl`, DM text and assertions' `iss`, so it includes the path: live `https://runeclans.com/plugins/link` (the hub takes it from `HUB_SIGNIN_BASE_URL`), local `http://localhost:3200/plugins/link`. **Website** (runeclans.com): an origin only, `https://runeclans.com`, or unset to fall back to `NEXTAUTH_URL`; it adds `/plugins/link` and `/api/link/web/auth/callback` itself, so a value with a path breaks Discord sign-in. In production the bot's own value does not matter: the bot's rsnlink service is legacy (replaced by the hub, T-162) and nothing on the bot needs setting for RuneLink.
 - The RuneLink pages live only on runeclans.com (`/plugins/link`); rsyounglings.com and its `LINK_HOST` face no longer have them.
 - Plugin `plugin.json`: `"urls": { "link": "<base URL>" }`. Dev builds point at `http://localhost:3200`, the local runeclans.com app (the beta client allows plain http to localhost). The release value is `https://runeclans.com`; changing it after release means a plugin update and a new Jagex review.
-- The address should be short enough to type from the panel (e.g. a 2-word host, no path).
+- The address should be short enough to type from the panel (`runeclans.com/plugins/link`).
 
 ## 15. Plugin name: RuneLink (decided)
 

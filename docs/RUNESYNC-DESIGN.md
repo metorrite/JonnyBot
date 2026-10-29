@@ -115,7 +115,7 @@ The server is the source of truth for consent (`plugin_consent`); the plugin onl
 
 - `plugin.json`: name `RuneSync`, version `0.1.0` for the first submission, `requiredDependencies: { "RuneLink": "RuneLink" }`, `optionalPermissions: ["httpAccess", "chatAccess", "trackingAccess"]` (http is required in practice; the panel explains each), `urls: { "runeclans": "<API_BASE>" }`, `hasSettingsIcon: true`, contact email from 13.D6.
 - Install from mod.io. Updates through mod.io; each release passes Jagex moderation. The server sends `minClientVersion`; an older client shows "Update RuneSync" and stops sending (never breaks the game).
-- `<API_BASE>` is `https://runeclans.com`: the website serves both plugins' API (`/api/ingest/v1/...` for RuneSync, `/api/link/v1/...` for RuneLink) and passes it on to the bot and the RuneClans hub. rsyounglings.com no longer serves it.
+- `<API_BASE>` is `https://runeclans.com`: the website serves both plugins' API (`/api/ingest/v1/...` for RuneSync, `/api/link/v1/...` for RuneLink) and passes it on to the RuneClans hub when its `HUB_BASE_URL` is set, otherwise to the bot. rsyounglings.com no longer serves it.
 
 ## 12. Privacy notice (draft for the submission, to publish at `/runesync/privacy` on the RuneClan Bot site)
 
