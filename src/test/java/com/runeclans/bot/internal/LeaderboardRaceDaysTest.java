@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -27,7 +26,7 @@ class LeaderboardRaceDaysTest {
                 day("Late", 1, 40), day("late", 0, 30),       // the same member, however the name was cased
                 day("Hidden", 5, 999),
                 day("TooOld", 30, 500), day("Tomorrow", -1, 500),
-                day("Nothing", 3, 0)), TODAY, Set.of("hidden"), 10);
+                day("Nothing", 3, 0)), TODAY, rsn -> !rsn.equalsIgnoreCase("hidden"), 10);
         DataArray top = month.top();
         assertEquals(2, top.length());
         assertEquals("Late", top.getObject(0).getString("rsn"));
@@ -53,8 +52,8 @@ class LeaderboardRaceDaysTest {
 
     @Test
     void pointsMonthKeepsToTheLimitAndIsNullWhenNobodyEarned() {
-        assertEquals(1, SiteApi.pointsMonth(List.of(day("A", 1, 5), day("B", 1, 4)), TODAY, Set.of(), 1).top().length());
-        SiteApi.PointsMonth none = SiteApi.pointsMonth(List.of(), TODAY, Set.of(), 10);
+        assertEquals(1, SiteApi.pointsMonth(List.of(day("A", 1, 5), day("B", 1, 4)), TODAY, rsn -> true, 1).top().length());
+        SiteApi.PointsMonth none = SiteApi.pointsMonth(List.of(), TODAY, rsn -> true, 10);
         assertEquals(0, none.top().length());
         assertNull(none.race());
     }
@@ -83,5 +82,17 @@ class LeaderboardRaceDaysTest {
         assertNull(ClanSitePluginFeedRaceAccess.raceOf(DataObject.empty().put("days", DataArray.fromCollection(List.of("2026-10-28")))
                 .put("players", DataArray.empty().add(player("Zezima", 5))), rsn -> true), "one day isn't a race");
         assertNull(ClanSitePluginFeedRaceAccess.raceOf(DataObject.empty(), rsn -> true), "an answer without days");
+        assertEquals(2, answer.getArray("players").getObject(0).getArray("cumulative").length(), "the hub's cached answer is left as it was");
+    }
+
+    @Test
+    void xpDaysKeepTheTopTenTheClanMayShowOutOfTheHubsLongerList() {
+        DataArray players = DataArray.empty().add(player("Alt", 900, 1000));
+        for (int i = 0; i < 14; i++) players.add(player("Member" + i, 10, 100 - i));
+        DataObject answer = DataObject.empty().put("days", DataArray.fromCollection(List.of("2026-10-27", "2026-10-28"))).put("players", players);
+        DataArray rows = ClanSitePluginFeedRaceAccess.raceOf(answer, rsn -> rsn.startsWith("Member")).getArray("rows");
+        assertEquals(10, rows.length(), "trimmed after the filter, so a hidden name doesn't cost a place");
+        assertEquals("Member0", rows.getObject(0).getString("rsn"));
+        assertEquals("Member9", rows.getObject(9).getString("rsn"));
     }
 }

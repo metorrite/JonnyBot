@@ -225,6 +225,7 @@ has more than one replica).
 | `guild-retention` | `retention/GuildRetentionService` | api, see M9 |
 | `plugin-retention`, `message-log-purge`, `clan-site-cleanup` | `plugin/...`, `messagelog/...`, `clansite/...` | api (database only) |
 | `address-change-scheduler` | `clanprofile/SlugChangeScheduler` | api |
+| `clan-site-race` | `clansite/ClanSitePluginFeed` (the leaderboard race's hub reads) | api (website reads only) |
 | `command-usage` | `commandusage/CommandUsageListener` | every process (flushes add up) |
 | `phishing-list` | `automod/PhishingList` | every process (each needs the list) |
 | `debouncer`, `site-invalidator` | `internal/Debouncer`, `internal/SiteInvalidator` | every process (local batching) |

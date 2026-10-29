@@ -583,10 +583,13 @@ public class SiteApi {
             roster.add(DataObject.empty().put("weekStart", w.weekStart().toString()).put("joins", w.joins()).put("leaves", w.leaves()));
         }
 
-        // the leaderboard race's real days (T-710): RuneSync XP from the hub's ledger, clan points from the awards
+        // the leaderboard race's real days (T-710): RuneSync XP from the hub's ledger, clan points from the awards. Only active members who
+        // may be ranked race: not a former member, not an old name, not a hub row under an alt's name, not someone hidden (by choice or default)
         LocalDate today = now.toLocalDate();
-        PointsMonth month30 = pointsMonth(stats.pointsByDay(guildId, today.minusDays(RACE_DAYS - 1)), today, hiddenBoards, 10);
-        DataObject xpRace = pluginFeed == null ? null : pluginFeed.xpRace(guildId, rsn -> shown(hiddenBoards, rsn));
+        Set<String> racers = ranked.stream().map(m -> m.rsn().toLowerCase()).collect(java.util.stream.Collectors.toSet());
+        java.util.function.Predicate<String> racing = rsn -> rsn != null && racers.contains(rsn.toLowerCase());
+        PointsMonth month30 = pointsMonth(stats.pointsByDay(guildId, today.minusDays(RACE_DAYS - 1)), today, racing, 10);
+        DataObject xpRace = pluginFeed == null ? null : pluginFeed.xpRace(guildId, racing);
         DataObject race = DataObject.empty();
         if (xpRace != null) race.put("xp", xpRace);
         if (month30.race() != null) race.put("points", month30.race());
@@ -623,14 +626,14 @@ public class SiteApi {
 
     /**
      * Clan points earned per member over the {@link #RACE_DAYS} days ending {@code today} (UTC), from the day rows: the top {@code limit} by
-     * points earned (members hidden from the rankings left out, ties by name), and for them each day's running total.
+     * points earned (only names {@code racing} lets in: active members who may be ranked; ties by name), and for them each day's running total.
      */
-    static PointsMonth pointsMonth(List<SiteStatsRepository.PointsDay> rows, LocalDate today, Set<String> hidden, int limit) {
+    static PointsMonth pointsMonth(List<SiteStatsRepository.PointsDay> rows, LocalDate today, java.util.function.Predicate<String> racing, int limit) {
         LocalDate first = today.minusDays(RACE_DAYS - 1);
         Map<String, String> names = new java.util.HashMap<>();
         Map<String, long[]> byMember = new java.util.HashMap<>();
         for (SiteStatsRepository.PointsDay row : rows) {
-            if (row.day().isBefore(first) || row.day().isAfter(today) || !shown(hidden, row.rsn())) continue;
+            if (row.day().isBefore(first) || row.day().isAfter(today) || !racing.test(row.rsn())) continue;
             String key = row.rsn().toLowerCase();
             names.putIfAbsent(key, row.rsn());
             byMember.computeIfAbsent(key, k -> new long[RACE_DAYS])[(int) (row.day().toEpochDay() - first.toEpochDay())] += row.points();

@@ -9,6 +9,6 @@ public final class ClanSitePluginFeedRaceAccess {
     private ClanSitePluginFeedRaceAccess() {}
 
     public static DataObject raceOf(DataObject answer, Predicate<String> shown) {
-        return ClanSitePluginFeed.raceOf(answer, shown);
+        return ClanSitePluginFeed.raceOf(answer, shown, ClanSitePluginFeed.RACE_ROWS);
     }
 }

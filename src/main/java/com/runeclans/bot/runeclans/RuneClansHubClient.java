@@ -232,11 +232,12 @@ public class RuneClansHubClient {
     }
 
     /**
-     * {@code GET /v1/guilds/{id}/xp/race} (T-710): the server's top 10 RuneSync XP gainers over the last 30 UTC days, each with their running
-     * total at the end of every day, for the clan website's leaderboard race. Through the cache, kept fresh 15 minutes.
+     * {@code GET /v1/guilds/{id}/xp/race} (T-710): the server's top 25 RuneSync XP gainers over the last 30 UTC days, each with their running
+     * total at the end of every day, for the clan website's leaderboard race (which keeps the top 10 the clan may show). Through the cache,
+     * kept fresh 15 minutes.
      */
     public Read guildXpRace(long guildId) {
-        return read("/v1/guilds/" + guildId + "/xp/race?days=30&limit=10", java.time.Duration.ofMinutes(15));
+        return read("/v1/guilds/" + guildId + "/xp/race?days=30&limit=25", java.time.Duration.ofMinutes(15));
     }
 
     // ---------- writes ----------
