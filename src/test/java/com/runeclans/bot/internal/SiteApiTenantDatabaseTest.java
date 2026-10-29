@@ -124,7 +124,7 @@ class SiteApiTenantDatabaseTest {
         cache = new SiteCache();
         api = new SiteApi(stats, links, points, settings, digest, profiles, mock(SiteNewsService.class), mock(SignupService.class),
                 cache, new RecapService(stats, profiles, digest, settings), community, new BossStatsService(stats, profiles, catalog),
-                discordShowingEvents());
+                discordShowingEvents(), mock(com.runeclans.bot.clansite.ClanSitePluginFeed.class));
         guildA = guild(GUILD_A);
         guildB = guild(GUILD_B);
 

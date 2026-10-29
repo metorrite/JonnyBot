@@ -99,6 +99,34 @@ public class ClanSitePluginFeed {
         return out.put("available", true).put("enough", out.getBoolean("enough", false));
     }
 
+    /**
+     * The leaderboard race's real days for XP (T-710): the hub's top RuneSync gainers of the last 30 days with their running totals per day,
+     * as {@code {days, rows: [{rsn, values}]}}, leaving out members who are hidden from the rankings ({@code shown} false) and rows without a
+     * name the bot may show. Null when the hub isn't connected, can't be reached, doesn't have the route, or nobody gained anything.
+     */
+    public DataObject xpRace(long guildId, java.util.function.Predicate<String> shown) {
+        RuneClansHubClient.Read read = hub.enabled() ? hub.guildXpRace(guildId) : null;
+        RuneClansHubClient.Answer a = read == null ? null : read.answer();
+        if (a == null || !a.ok() || a.json() == null) return null;
+        return raceOf(a.json(), shown);
+    }
+
+    /** {@link #xpRace} from the hub's answer: rows whose running totals line up with the days, named, shown, and above nothing at the end. */
+    static DataObject raceOf(DataObject answer, java.util.function.Predicate<String> shown) {
+        DataArray days = answer.optArray("days").orElse(DataArray.empty());
+        if (days.length() < 2) return null;
+        DataArray rows = DataArray.empty();
+        DataArray players = answer.optArray("players").orElse(DataArray.empty());
+        for (int i = 0; i < players.length(); i++) {
+            DataObject p = players.getObject(i);
+            String rsn = p.getString("rsn", null);
+            DataArray values = p.optArray("cumulative").orElse(DataArray.empty());
+            if (rsn == null || rsn.isBlank() || !shown.test(rsn) || values.length() != days.length() || values.getLong(values.length() - 1) <= 0) continue;
+            rows.add(DataObject.empty().put("rsn", rsn).put("values", values));
+        }
+        return rows.isEmpty() ? null : DataObject.empty().put("days", days).put("rows", rows);
+    }
+
     private DataArray events(long guildId) {
         Cached c = cache.get(guildId);
         if (c != null && c.at().plus(CACHE).isAfter(Instant.now())) return c.events();
