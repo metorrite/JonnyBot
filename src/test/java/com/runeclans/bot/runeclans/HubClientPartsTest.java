@@ -188,6 +188,9 @@ class HubClientPartsTest {
         // a community's mapped Discord role is one of the role mappings (T-732)
         cache.put("/v1/guilds/1/role-mappings", ok("r"), Set.of("sites"));
         assertEquals(1, HubChanges.evict(cache, "community.changed", DataObject.empty()));
+        // a league, its terms, a round or a result moved (T-759)
+        cache.put("/v1/guilds/1/leagues", ok("l"), Set.of("leagues"));
+        assertEquals(1, HubChanges.evict(cache, "league.results", DataObject.empty()));
         assertEquals(0, HubChanges.evict(cache, null, null));
     }
 
