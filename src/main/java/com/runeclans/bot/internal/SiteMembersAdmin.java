@@ -4,6 +4,7 @@ import com.runeclans.bot.clansite.SiteRoleGuard;
 import com.runeclans.bot.clansite.SiteRoles;
 import com.runeclans.bot.i18n.Text;
 import com.runeclans.bot.internal.TicketAdminApi.ApiError;
+import com.runeclans.bot.member.HubMemberPrivacy;
 import com.runeclans.bot.member.MemberProfileRepository;
 import com.runeclans.bot.member.MemberProfileRepository.PrivacyDefaults;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -47,8 +48,11 @@ public class SiteMembersAdmin {
     private final SiteSeasons seasons;
     /** Searches per person: a burst of 5 (typing), then 2 a second. Reads aren't otherwise limited, and a search walks the member list. */
     private final RateLimiter searches = new RateLimiter(5, 500);
+    private final HubMemberPrivacy hubPrivacy;
 
-    public SiteMembersAdmin(MemberProfileRepository profiles, SiteRoleGuard siteRoles, SiteCache cache, SiteCockpitAdmin cockpit, SiteSeasons seasons) {
+    public SiteMembersAdmin(MemberProfileRepository profiles, SiteRoleGuard siteRoles, SiteCache cache, SiteCockpitAdmin cockpit, SiteSeasons seasons,
+                            HubMemberPrivacy hubPrivacy) {
+        this.hubPrivacy = hubPrivacy;
         this.profiles = profiles;
         this.siteRoles = siteRoles;
         this.cache = cache;
@@ -78,6 +82,7 @@ public class SiteMembersAdmin {
             PrivacyDefaults next = new PrivacyDefaults(flag(c, b, "hideFromLeaderboards", current.hideFromLeaderboards()),
                     flag(c, b, "hideAdventureLog", current.hideAdventureLog()), flag(c, b, "hideDiscordLink", current.hideDiscordLink()));
             profiles.savePrivacyDefaults(c.guildId(), next, c.userId());
+            hubPrivacy.defaultsSaved(c.guildId(), next); // the hub's copy (T-750)
             // the defaults change who shows in many cached answers, the clan site's included
             cache.clear();
         }

@@ -6,6 +6,7 @@ import com.runeclans.bot.commands.poll.PollService;
 import com.runeclans.bot.commands.runescape.RsInteractionListener;
 import com.runeclans.bot.commands.signup.SignupService;
 import com.runeclans.bot.internal.CommunitySettings.SiteMemberOptions;
+import com.runeclans.bot.member.HubMemberPrivacy;
 import com.runeclans.bot.member.MemberProfileRepository;
 import com.runeclans.bot.member.MemberProfileRepository.Profile;
 import com.runeclans.bot.permission.MemberAccess;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -57,6 +59,7 @@ class MemberApiClanSiteTest {
     private Guild guild;
     private Member member;
     private SkillWeekMemberApi skillWeek;
+    private HubMemberPrivacy hubPrivacy;
 
     @BeforeEach
     void setUp() {
@@ -66,8 +69,10 @@ class MemberApiClanSiteTest {
         community = mock(CommunitySettings.class);
         outbox = mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class);
         skillWeek = mock(SkillWeekMemberApi.class);
+        hubPrivacy = mock(HubMemberPrivacy.class);
         api = new MemberApi(profiles, links, mock(PollService.class), mock(SignupService.class), mock(MemberAccess.class), mock(Debouncer.class), new SiteCache(), community,
-                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox, skillWeek);
+                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox, skillWeek,
+                hubPrivacy);
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(CLAN_GUILD);
@@ -173,6 +178,7 @@ class MemberApiClanSiteTest {
         assertEquals(CLAN_GUILD, written.getValue().guildId(), "the row belongs to the clan site's server");
         assertEquals(USER, written.getValue().userId());
         assertTrue(written.getValue().hideFromLeaderboards());
+        verify(hubPrivacy).memberSaved(CLAN_GUILD, USER, true, false, false); // the hub's copy (T-750): all three toggles as saved
     }
 
     @Test
@@ -195,6 +201,7 @@ class MemberApiClanSiteTest {
 
         call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"bio\":\"Hi\"}", true);
         assertTrue(stored.get().hideRecap(), "a save that leaves it out keeps it");
+        verify(hubPrivacy, never()).memberSaved(anyLong(), anyLong(), anyBoolean(), anyBoolean(), anyBoolean()); // no privacy toggle named: nothing for the hub
         call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"hideRecap\":false}", true);
         assertFalse(stored.get().hideRecap(), "and it can be turned back on for the clan");
     }
