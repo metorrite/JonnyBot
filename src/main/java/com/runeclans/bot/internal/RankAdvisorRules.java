@@ -314,8 +314,9 @@ public final class RankAdvisorRules {
 
     /**
      * Who was due before {@code week} and got the rank since: their in-game rank reached the target, or staff ticked them off for it. Members
-     * who left, are ignored, or were due for more than {@link #DUE_KEEP_WEEKS} weeks are dropped without a congrats. {@code discordNames}:
-     * the linked Discord name per member key, when known.
+     * who are ignored, or were due for more than {@link #DUE_KEEP_WEEKS} weeks, are dropped without a congrats. Someone missing from the roster
+     * stays due (a roster sync outage must not wipe the list; once they have really left they age out). {@code discordNames}: the linked
+     * Discord name per member key, when known (none: filled in when the message is shown or posted).
      */
     public static Turn turn(LocalDate week, List<Due> due, List<Facts> members, List<Tick> ticks, Set<String> ignored, Map<String, String> discordNames) {
         Map<String, Facts> byKey = new HashMap<>();
@@ -328,8 +329,12 @@ public final class RankAdvisorRules {
             if (!d.since().isBefore(week)) continue;
             Facts f = byKey.get(d.rsnKey());
             int target = indexOf(d.target());
-            if (f == null || target < 0 || ignored.contains(d.rsnKey())) {
+            if (target < 0 || ignored.contains(d.rsnKey())) {
                 drop.add(d);
+                continue;
+            }
+            if (f == null) {
+                if (d.since().isBefore(oldest)) drop.add(d);
                 continue;
             }
             int now = indexOf(f.rank());
@@ -357,7 +362,22 @@ public final class RankAdvisorRules {
         String rsn = net.dv8tion.jda.api.utils.MarkdownSanitizer.escape(p.rsn());
         String who = p.discordName() == null || p.discordName().isBlank() ? rsn
                 : "@" + net.dv8tion.jda.api.utils.MarkdownSanitizer.escape(p.discordName().strip()) + " (" + rsn + ")";
-        return "• " + who + ": " + p.toRank();
+        return "• " + noMassPings(who) + ": " + p.toRank();
+    }
+
+    /** {@code @everyone} / {@code @here} in a member's name broken with a zero-width space, so the copied text never pings a whole server. */
+    static String noMassPings(String text) {
+        return text.replaceAll("(?i)@(everyone|here)", "@\u200b$1");
+    }
+
+    /** The week's list with missing Discord names filled in from {@code names} (the linked members' names now), when known. */
+    public static List<Promoted> withNames(List<Promoted> promoted, Map<String, String> names) {
+        List<Promoted> out = new ArrayList<>();
+        for (Promoted p : promoted) {
+            String name = p.discordName() == null || p.discordName().isBlank() ? names.get(p.rsnKey()) : p.discordName();
+            out.add(new Promoted(p.rsnKey(), p.rsn(), p.fromRank(), p.toRank(), name));
+        }
+        return out;
     }
 
     /** The weekly message: the owner's text with {@code {list}} and {@code {count}} filled in; empty when nobody was promoted. */

@@ -148,6 +148,35 @@ class RankAdvisorRulesTest {
     }
 
     @Test
+    void aMemberNamedEveryoneNeverPingsTheServerFromTheCopiedText() {
+        String line = RankAdvisorRules.congratsLine(new Promoted("a", "A", "Recruit", "Corporal", "everyone"));
+        assertEquals("• @\u200beveryone (A): Corporal", line);
+        String inside = RankAdvisorRules.congratsLine(new Promoted("b", "B", "Recruit", "Corporal", "hi @Here"));
+        assertFalse(inside.toLowerCase().contains("@here"), inside);
+        assertFalse(line.contains("@everyone"));
+    }
+
+    @Test
+    void missingDiscordNamesAreFilledInWhenShown() {
+        List<Promoted> week = List.of(new Promoted("a", "A", "Recruit", "Corporal", null), new Promoted("b", "B", "Recruit", "Corporal", "Kept"));
+        List<Promoted> named = RankAdvisorRules.withNames(week, Map.of("a", "Now Known", "b", "Other"));
+        assertEquals("Now Known", named.get(0).discordName(), "a turn without Discord's cache stored no name");
+        assertEquals("Kept", named.get(1).discordName(), "a stored name stays");
+        assertNull(RankAdvisorRules.withNames(week, Map.of()).get(0).discordName());
+    }
+
+    @Test
+    void anEmptyOrPartialRosterKeepsEveryoneDue() {
+        LocalDate week = LocalDate.of(2026, 10, 28);
+        List<Due> due = List.of(new Due("a", "A", "Recruit", "Corporal", week.minusWeeks(1)), new Due("b", "B", "Recruit", "Corporal", week.minusWeeks(1)));
+        RankAdvisorRules.Turn none = RankAdvisorRules.turn(week, due, List.of(), List.of(), java.util.Set.of(), Map.of());
+        assertTrue(none.promoted().isEmpty());
+        assertTrue(none.drop().isEmpty(), "a roster sync outage must not wipe the due list");
+        RankAdvisorRules.Turn part = RankAdvisorRules.turn(week, due, List.of(member("A", "Corporal", 0L, 30, null, 0)), List.of(), java.util.Set.of(), Map.of());
+        assertEquals(List.of("a"), part.drop().stream().map(Due::rsnKey).toList(), "B, missing this time, stays due for next week");
+    }
+
+    @Test
     void theStaffCheckIsOneShortLine() {
         assertNull(RankAdvisorRules.cleanStaffCheck("   "));
         assertEquals("Master CAs done", RankAdvisorRules.cleanStaffCheck(" Master\nCAs   done "));
@@ -212,7 +241,8 @@ class RankAdvisorRulesTest {
                 turn.promoted().stream().map(p -> p.rsn() + ":" + p.toRank()).toList(), "highest rank first; the in-game rank when higher than due");
         assertEquals("GotItDiscord", turn.promoted().get(2).discordName());
         List<String> dropped = turn.drop().stream().map(Due::rsnKey).sorted().toList();
-        assertEquals(List.of("alt", "got it", "jumped", "left", "stale", "ticked"), dropped, "not yet stays due; this week's entries wait for next week");
+        assertEquals(List.of("alt", "got it", "jumped", "stale", "ticked"), dropped,
+                "not yet stays due; someone missing from the roster ages out; this week's entries wait for next week");
     }
 
     @Test

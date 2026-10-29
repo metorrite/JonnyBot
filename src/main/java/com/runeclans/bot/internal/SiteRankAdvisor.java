@@ -61,7 +61,7 @@ import java.util.function.Supplier;
  * The weekly update (Drake's T-594 answers): each promotion week ({@link RankAdvisorRules#weekOf}) the bot notes who is due (ready, meeting
  * the numbers on Pending review, or ticked); when the week turns, everyone due before it who has the rank now is congratulated. The page
  * shows that message to copy; with the owner's auto post on, {@link #sweep} posts it once through the Discord job outbox, never from a bot
- * that isn't live, with no pings. The week turns on the page's first load or the sweep's next run, whichever comes first.
+ * that isn't live, with no pings. Only the sweep (every half hour) turns the week and notes who is due; loading the page writes nothing.
  * <p>
  * It only advises: the bot can't change an in-game rank, and never says it did. Read-only on Discord apart from the queued weekly post.
  */
@@ -154,15 +154,15 @@ public class SiteRankAdvisor {
         return out;
     }
 
-    /** Everything the page and the weekly sweep read, after the week's bookkeeping (who is due noted, the week turned when due). */
+    /** Everything the page and the weekly sweep read (for the sweep, after the week's bookkeeping: the week turned when due, who is due noted). */
     record State(Map<String, Rule> rules, List<Tick> ticks, List<Hold> holds, List<Facts> members, List<Ready> ready, List<Pending> pending,
                  Map<String, Long> links, LocalDate week, Week latest) {}
 
     /**
-     * Reads the advisor's data and does the weekly bookkeeping: turns the promotion week over when it is due (once, whoever comes first), then
-     * notes everyone due now. {@code guild} null: a bot-less site (no Discord names, nothing posted).
+     * Reads the advisor's data. With {@code bookkeeping} (the weekly sweep only, never a page load) it also turns the promotion week over when
+     * it is due (once) and notes everyone due now; an empty roster (a sync outage) turns nothing. {@code guild} null: no Discord names.
      */
-    State state(long guildId, Guild guild, OffsetDateTime now) {
+    State state(long guildId, Guild guild, OffsetDateTime now, boolean bookkeeping) {
         // T-725: caps come from the Adventurer's Log via RuneMetrics; see CitadelCaps and runeclans-hub docs/RUNEMETRICS-SUNSET.md
         boolean capsOn = capsAvailable.getAsBoolean();
         Map<String, Rule> rules = store.rules(guildId);
@@ -177,7 +177,7 @@ public class SiteRankAdvisor {
             if (h.ignored()) ignored.add(h.rsnKey());
         }
         LocalDate week = RankAdvisorRules.weekOf(now);
-        if (!store.turned(guildId, week)) {
+        if (bookkeeping && !members.isEmpty() && !store.turned(guildId, week)) {
             RankAdvisorRules.Turn turn = RankAdvisorRules.turn(week, store.due(guildId), members, ticks, ignored, discordNames(guild, links));
             if (store.turn(guildId, week, turn) && !turn.promoted().isEmpty()) {
                 log.info("Rank-up advisor: the promotion week {} turned over in server {} ({} promoted)", week, guildId, turn.promoted().size());
@@ -190,7 +190,7 @@ public class SiteRankAdvisor {
         for (Pending p : pending) {
             if (p.meets()) due.add(new Due(p.member().key(), p.member().rsn(), p.member().rank(), p.next().target(), week));
         }
-        store.noteDue(guildId, due);
+        if (bookkeeping) store.noteDue(guildId, due);
         return new State(rules, ticks, holds, members, ready, pending, links, week, store.latestWeek(guildId));
     }
 
@@ -208,7 +208,7 @@ public class SiteRankAdvisor {
     DataObject view(SiteCaller c, OffsetDateTime now) {
         long guildId = c.guildId();
         boolean capsOn = capsAvailable.getAsBoolean();
-        State st = state(guildId, c.botless() ? null : c.guild(), now);
+        State st = state(guildId, c.botless() ? null : c.guild(), now, false);
         Map<String, Rule> rules = st.rules();
         Map<String, Facts> byKey = new HashMap<>();
         for (Facts f : st.members()) byKey.put(f.key(), f);
@@ -306,15 +306,16 @@ public class SiteRankAdvisor {
         DataObject out = DataObject.empty().put("week", st.week().toString()).put("nextTurnAt", nextTurn.toString()).put("dueNow", dueNow)
                 .put("latest", null);
         if (latest == null) return out;
+        List<Promoted> named = RankAdvisorRules.withNames(latest.promoted(), discordNames(c.botless() ? null : c.guild(), st.links()));
         DataArray promoted = DataArray.empty();
-        for (Promoted p : latest.promoted()) {
+        for (Promoted p : named) {
             promoted.add(DataObject.empty().put("rsn", p.rsn()).put("from", p.fromRank()).put("to", p.toRank()).put("discordName", p.discordName()));
         }
         DataObject posted = latest.postedAt() == null ? null : DataObject.empty().put("at", latest.postedAt().toString())
                 .put("jobId", latest.jobId() == null ? null : Long.toString(latest.jobId()));
         return out.put("latest", DataObject.empty().put("weekStart", latest.start().toString()).put("turnedAt", iso(latest.turnedAt()))
                 .put("current", latest.start().equals(st.week())).put("promoted", promoted)
-                .put("text", RankAdvisorRules.weeklyText(congrats.text(), latest.promoted())).put("posted", posted));
+                .put("text", RankAdvisorRules.weeklyText(congrats.text(), named)).put("posted", posted));
     }
 
     // ---------- the weekly sweep ----------
@@ -328,7 +329,7 @@ public class SiteRankAdvisor {
         for (long guildId : store.serversWithRules()) {
             try {
                 Guild guild = jda == null ? null : Shards.guild(jda, guildId);
-                State st = state(guildId, guild, now);
+                State st = state(guildId, guild, now, true);
                 if (post(guild, guildId, st, now)) posted++;
             } catch (RuntimeException e) {
                 log.warn("Rank-up advisor: the weekly update failed for server {}", guildId, e);
@@ -350,7 +351,7 @@ public class SiteRankAdvisor {
             return false;
         }
         if (!store.claimPost(guildId, latest.start())) return false;
-        String text = RankAdvisorRules.weeklyText(congrats.text(), latest.promoted());
+        String text = RankAdvisorRules.weeklyText(congrats.text(), RankAdvisorRules.withNames(latest.promoted(), discordNames(guild, st.links())));
         DiscordJob job = outbox.enqueue(RankCongratsJob.KIND, guildId, 0L, "rankweek:" + guildId + ":" + latest.start(),
                 RankCongratsJob.payload(ch.getIdLong(), text));
         store.saveJob(guildId, latest.start(), job.id());
