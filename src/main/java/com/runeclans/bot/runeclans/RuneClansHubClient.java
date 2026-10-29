@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -36,6 +37,11 @@ public class RuneClansHubClient {
     /** One HTTP exchange with the hub; null when it can't be reached. Replaceable in tests. */
     public interface Transport {
         Answer call(String method, String path, String body);
+
+        /** The same with extra request headers ({@code If-Match}); a transport that has none to send ignores them. */
+        default Answer call(String method, String path, String body, Map<String, String> headers) {
+            return call(method, path, body);
+        }
     }
 
     /** The hub's status and JSON answer ({@code json} null when the body wasn't JSON), and its {@code Retry-After} in seconds, if any. */
@@ -94,6 +100,12 @@ public class RuneClansHubClient {
     public Answer call(String method, String path, String body) {
         if (!enabled()) return null;
         return transport.call(method, path, body);
+    }
+
+    /** A raw call with extra headers ({@code If-Match: <rev>} for the hub's request cards, T-734). Null when off or unreachable. */
+    public Answer call(String method, String path, String body, Map<String, String> headers) {
+        if (!enabled()) return null;
+        return transport.call(method, path, body, headers);
     }
 
     // ---------- cached reads, queued writes, change eviction ----------
@@ -267,26 +279,39 @@ public class RuneClansHubClient {
     static Transport http(RuneClansSettings settings) {
         // one client for the bot's life: HTTP/1.1 keeps its connections to the hub open between calls (no connect cost per call)
         HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(3)).build();
-        return (method, path, body) -> {
-            try {
-                HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(settings.baseUrl() + path)).timeout(Duration.ofSeconds(8))
-                        .header("Authorization", "Bearer " + settings.apiKey()).header("Content-Type", "application/json").header("User-Agent", "JonnyBot runeclans-client");
-                // the website's request id, when this call is part of an internal API request (T-674), so the hub's log line carries it too
-                String requestId = com.runeclans.bot.ops.OpsTelemetry.currentRequestId();
-                if (requestId != null) request.header(com.runeclans.bot.ops.RequestIds.HEADER, requestId);
-                request = body == null ? request.method(method, HttpRequest.BodyPublishers.noBody()) : request.method(method, HttpRequest.BodyPublishers.ofString(body));
-                HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
-                DataObject json = null;
-                try {
-                    json = DataObject.fromJson(response.body());
-                } catch (RuntimeException ignored) {
-                    // not JSON: no body
-                }
-                return new Answer(response.statusCode(), json, retryAfter(response.headers().firstValue("Retry-After").orElse(null)));
-            } catch (Exception e) {
-                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-                return null;
+        return new Transport() {
+            @Override
+            public Answer call(String method, String path, String body) {
+                return call(method, path, body, Map.of());
+            }
+
+            @Override
+            public Answer call(String method, String path, String body, Map<String, String> headers) {
+                return send(client, settings, method, path, body, headers);
             }
         };
+    }
+
+    private static Answer send(HttpClient client, RuneClansSettings settings, String method, String path, String body, Map<String, String> headers) {
+        try {
+            HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(settings.baseUrl() + path)).timeout(Duration.ofSeconds(8))
+                    .header("Authorization", "Bearer " + settings.apiKey()).header("Content-Type", "application/json").header("User-Agent", "JonnyBot runeclans-client");
+            // the website's request id, when this call is part of an internal API request (T-674), so the hub's log line carries it too
+            String requestId = com.runeclans.bot.ops.OpsTelemetry.currentRequestId();
+            if (requestId != null) request.header(com.runeclans.bot.ops.RequestIds.HEADER, requestId);
+            headers.forEach(request::header);
+            request = body == null ? request.method(method, HttpRequest.BodyPublishers.noBody()) : request.method(method, HttpRequest.BodyPublishers.ofString(body));
+            HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+            DataObject json = null;
+            try {
+                json = DataObject.fromJson(response.body());
+            } catch (RuntimeException ignored) {
+                // not JSON: no body
+            }
+            return new Answer(response.statusCode(), json, retryAfter(response.headers().firstValue("Retry-After").orElse(null)));
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            return null;
+        }
     }
 }

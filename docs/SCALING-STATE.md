@@ -215,6 +215,7 @@ has more than one replica).
 | `community-command` | `hubsites/CommunityCommand` | gateway (own shards) |
 | `runeclans-feed` | `runeclans/RuneClansFeedPoller` | api (cursor in Postgres); posts through the outbox |
 | `hub-sites` | `hubsites/HubSiteReporter` | gateway (own shards) |
+| `request-cards` | `hubsites/RequestCards` | gateway (answers card presses); cards and roles go through the outbox (`hubsites/RequestCardJobs`) |
 | `discord-jobs`, `discord-job-claims` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 (claims per process, done) |
 | `ephemeral-lifecycle` | `discord/EphemeralLifecycle` | gateway (the process that answered) |
 | `event-board-panels`, `cohost-panels`, `event-signups` | `events/...` | gateway (own shards) |

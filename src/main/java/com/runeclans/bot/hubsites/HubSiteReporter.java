@@ -4,6 +4,7 @@ import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.BotListener;
 import com.runeclans.bot.config.PrivilegedIntents;
 import com.runeclans.bot.runeclans.HubWriteQueue;
+import com.runeclans.bot.runeclans.HubFeedListener;
 import com.runeclans.bot.runeclans.RuneClansHubClient;
 import com.runeclans.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -35,11 +36,13 @@ import java.util.concurrent.TimeUnit;
  *   <li>on joining a server, its capabilities there; on leaving one, an empty list</li>
  *   <li>on a member's role change, the holders of the mapped roles that changed ({@link RoleReports}: gathered for a few seconds, one
  *   report per role)</li>
+ *   <li>when a server's role mappings change on the hub ({@code site.roles_changed}, or {@code feature.changed} for
+ *   {@code requests.discord}, whose request handler roles join them: T-734), the holders of every mapped role there again</li>
  * </ul>
  * Writes go through the hub client's queue, so a hub that is briefly down gets them a little later. Off: nothing here runs.
  */
 @BService
-public class HubSiteReporter extends ListenerAdapter implements BotListener {
+public class HubSiteReporter extends ListenerAdapter implements BotListener, HubFeedListener {
     private static final Logger log = LoggerFactory.getLogger(HubSiteReporter.class);
 
     private final HubSites sites;
@@ -97,6 +100,34 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener {
     @Override
     public void onGuildMemberRoleRemove(GuildMemberRoleRemoveEvent event) {
         changed(event.getGuild(), event.getRoles());
+    }
+
+    @Override
+    public void onHubFeed(String kind, DataObject data) {
+        if (!sites.readsHub()) return;
+        Long guildId = remappedGuild(kind, data);
+        if (guildId == null) return;
+        lane.execute(() -> {
+            try {
+                reports.all(guildId);
+            } catch (RuntimeException e) {
+                log.warn("Hub role report after a mapping change failed: {}", e.getClass().getSimpleName());
+            }
+        });
+    }
+
+    /** The server whose role mappings this hub change may have changed, or null. */
+    static Long remappedGuild(String kind, DataObject data) {
+        if (data == null || !(kind.equals("site.roles_changed") || kind.equals("feature.changed"))) return null;
+        DataObject inner = data.optObject("data").orElse(null);
+        if (inner == null) return null;
+        if (kind.equals("feature.changed")) {
+            String key = inner.optObject("feature").map(f -> f.getString("key", "")).orElse("");
+            if (!key.equals("requests.discord")) return null;
+        }
+        String guild = inner.getString("guildId", null);
+        if (guild == null || !guild.matches("\\d{15,20}")) return null;
+        return Long.parseLong(guild);
     }
 
     private void changed(Guild guild, List<Role> roles) {

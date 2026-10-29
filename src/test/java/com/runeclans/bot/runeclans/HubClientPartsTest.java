@@ -58,6 +58,28 @@ class HubClientPartsTest {
     }
 
     @Test
+    void headersReachTheHubOnEveryTry() {
+        List<Map<String, String>> seen = new ArrayList<>();
+        RuneClansHubClient.Transport inner = new RuneClansHubClient.Transport() {
+            @Override
+            public RuneClansHubClient.Answer call(String method, String path, String body) {
+                throw new AssertionError("headers dropped");
+            }
+
+            @Override
+            public RuneClansHubClient.Answer call(String method, String path, String body, Map<String, String> headers) {
+                seen.add(headers);
+                return seen.size() == 1 ? new RuneClansHubClient.Answer(503, null) : ok("x");
+            }
+        };
+        HubRetry retry = new HubRetry(inner, w -> { });
+        assertTrue(retry.call("PUT", "/v1/requests/x/status", "{}", Map.of("If-Match", "4")).ok());
+        assertEquals(List.of(Map.of("If-Match", "4"), Map.of("If-Match", "4")), seen);
+        assertEquals(200, new RuneClansHubClient(on(), retry).call("PUT", "/v1/x", "{}", Map.of("If-Match", "1")).status());
+        assertNull(new RuneClansHubClient(RuneClansSettings.OFF, inner).call("PUT", "/v1/x", "{}", Map.of("If-Match", "1")), "off: never called");
+    }
+
+    @Test
     void retriesOnlyWhatIsSafeToRepeat() {
         List<Duration> waits = new ArrayList<>();
         AtomicInteger calls = new AtomicInteger();
