@@ -122,6 +122,20 @@ class PollEngineTest {
         assertEquals(1, engine.status().merged());
     }
 
+    /** T-736: the community tier sits between clan and linked, and a player wanted by both clan and community lists is polled once, at CLAN. */
+    @Test
+    void theCommunityTierComesAfterClansAndBeforeLinked() {
+        engine.submit(PollRequest.background("loner", PollPriority.LINKED, Duration.ZERO, "t"));
+        engine.submit(PollRequest.background("friend", PollPriority.COMMUNITY, Duration.ZERO, "t"));
+        engine.submit(PollRequest.background("Both", PollPriority.COMMUNITY, HOUR, "community players"));
+        clan("both");
+
+        drain();
+
+        assertEquals(List.of("Both", "friend", "loner"), polled);
+        assertEquals(1, engine.status().merged());
+    }
+
     @Test
     void aMergedRequestTakesTheHigherPriority() {
         clan("someone");

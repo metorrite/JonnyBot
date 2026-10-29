@@ -537,6 +537,14 @@ public class BotConfig {
     }
 
     /**
+     * The window for the community tier (T-736): RuneLink-linked players the hub places in a community site and in no registered clan.
+     * Defaults to the linked window ({@link #getRunescapeLinkedPollWindowMinutes}); set {@code RUNESCAPE_COMMUNITY_POLL_WINDOW_MINUTES} to tune it.
+     */
+    public long getRunescapeCommunityPollWindowMinutes() {
+        return positiveMinutes("RUNESCAPE_COMMUNITY_POLL_WINDOW_MINUTES", getRunescapeLinkedPollWindowMinutes());
+    }
+
+    /**
      * The window for the premium tier: clans on the faster plan, whose players are polled more often than a standard clan's.
      * Defaults to 60 minutes; set {@code RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES} to tune it.
      */

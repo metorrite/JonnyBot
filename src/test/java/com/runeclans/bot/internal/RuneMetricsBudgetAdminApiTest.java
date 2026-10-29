@@ -112,7 +112,7 @@ class RuneMetricsBudgetAdminApiTest {
         assertEquals(180, clan.getInt("windowMinutes"));
         assertEquals(7000, clan.getInt("lagSeconds"));
         assertTrue(clan.getBoolean("behind"), "waiting for 7000 s of a 180 minute window is behind");
-        assertEquals(4, o.getArray("tiers").length());
+        assertEquals(com.runeclans.bot.runescape.polling.PollPriority.values().length, o.getArray("tiers").length());
     }
 
     @Test
