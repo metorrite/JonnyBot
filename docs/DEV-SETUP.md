@@ -129,7 +129,8 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `RUNESCAPE_POLL_REQUESTS_PER_MINUTE` | The shared RuneMetrics request budget per minute. | `10`. |
 | `RUNESCAPE_POLL_BURST` | Requests the budget may save up for a burst. | `6`. |
 | `RUNESCAPE_CLAN_POLL_WINDOW_MINUTES` | One pass over every player in a registered clan. | `180`. |
-| `RUNESCAPE_LINKED_POLL_WINDOW_MINUTES` | One pass over linked players not in a registered clan. | `480`. |
+| `RUNESCAPE_LINKED_POLL_WINDOW_MINUTES` | One pass over linked players (`/rsn`, and RuneLink links from the hub's polling list) in no registered clan or community. | `480`. |
+| `RUNESCAPE_COMMUNITY_POLL_WINDOW_MINUTES` | One pass over RuneLink-linked players the hub places in a community site and in no registered clan (T-736). The hub's Switches panel "Track every linked player" (`polling-list`) turns that list on; off, this tier is empty. | The linked window. |
 | `RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES` | One pass over players in premium clans. | `60`. |
 | `RUNEMETRICS_TIME_ZONE` | The zone RuneMetrics' activity times are read in. The clock check warns if it looks wrong (for example `Etc/GMT-1`). Environment only. | `Europe/London`. |
 | `RUNEMETRICS` | Whether RuneMetrics is still asked. Jagex retires it on 2026-11-10: `auto` asks until then and stops after, `on` keeps asking (if Jagex extends it), `off` stops now. Also stops the RuneLink XP check reading it (the Hiscores alone decide). When off, Clan health's missed Citadel caps list and the rank-up advisor's caps parts show as unavailable (not counted). Environment only. | `auto`. |
