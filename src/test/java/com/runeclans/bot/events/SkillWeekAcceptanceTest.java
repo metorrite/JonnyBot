@@ -124,7 +124,7 @@ class SkillWeekAcceptanceTest {
         Instant closing = Instant.parse("2026-11-02T00:12:00Z");
         tracker.withClock(Clock.fixed(closing, ZoneOffset.UTC));
         SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class), Mockito.mock(com.runeclans.bot.member.MemberProfileRepository.class),
-                Mockito.mock(com.runeclans.bot.plugin.PluginVisibilityRepository.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
+                Mockito.mock(com.runeclans.bot.plugin.PluginVisibilityRepository.class), Mockito.mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
         List<Winner> winners = service.close(new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null)).orElseThrow();
 
         Map<String, Long> truth = ledger(List.of("a1_alice", "a1_bob", "a1_carol", "a1_dave"), FLETCHING, START, NEXT_MONDAY);
@@ -157,7 +157,7 @@ class SkillWeekAcceptanceTest {
         tracker.withClock(Clock.fixed(closing, ZoneOffset.UTC));
         SkillWeekRepository.Week week = new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null);
         SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class), Mockito.mock(com.runeclans.bot.member.MemberProfileRepository.class),
-                Mockito.mock(com.runeclans.bot.plugin.PluginVisibilityRepository.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
+                Mockito.mock(com.runeclans.bot.plugin.PluginVisibilityRepository.class), Mockito.mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
         assertTrue(service.close(week).isEmpty());
         verify(weeks, never()).close(anyLong(), any(), anyString());
         verify(events, never()).moveStage(GUILD, 1, Status.SCORING);
@@ -180,7 +180,7 @@ class SkillWeekAcceptanceTest {
         PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(late, ZoneOffset.UTC));
         assertFalse(tracker.pass(event).complete());
         SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class), Mockito.mock(com.runeclans.bot.member.MemberProfileRepository.class),
-                Mockito.mock(com.runeclans.bot.plugin.PluginVisibilityRepository.class)).withClock(Clock.fixed(late, ZoneOffset.UTC));
+                Mockito.mock(com.runeclans.bot.plugin.PluginVisibilityRepository.class), Mockito.mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class)).withClock(Clock.fixed(late, ZoneOffset.UTC));
         assertEquals(List.of(), service.close(new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null)).orElseThrow());
         verify(weeks).close(GUILD, START, "[]");
     }

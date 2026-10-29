@@ -104,6 +104,31 @@ public final class SkillWeekRules {
         return out;
     }
 
+    /**
+     * The skill members voted for (T-711): the rota is the ballot, so votes for a skill not in it don't count. Most votes wins; a tie goes to the
+     * tied skill that comes first going round the rota from {@code position} (the rota's next in line), and with no votes the rota's next wins.
+     * -1 for an empty rota.
+     */
+    public static int voteWinner(List<Integer> rota, int position, Map<Integer, Integer> votes) {
+        if (rota.isEmpty()) return -1;
+        int best = skillAt(rota, position);
+        int most = 0;
+        for (int i = 0; i < rota.size(); i++) {
+            int skill = skillAt(rota, position + i);
+            int count = votes.getOrDefault(skill, 0);
+            if (count > most) {
+                best = skill;
+                most = count;
+            }
+        }
+        return best;
+    }
+
+    /** The start of the week members vote for while the week that {@code at} falls in runs: the next one. */
+    public static Instant votingFor(Instant at) {
+        return weekStart(at).plus(7, ChronoUnit.DAYS);
+    }
+
     /** "Skill of the week: Fletching (26 Oct)". */
     public static String eventName(int skillId, Instant start) {
         return "Skill of the week: " + CompetitionTemplate.skillName(skillId) + " (" + DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH).withZone(ZoneOffset.UTC).format(start) + ")";
