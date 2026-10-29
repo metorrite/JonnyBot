@@ -10,11 +10,14 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Member privacy in the RuneClans hub (T-750, runeclans-hub docs/MEMBER-PRIVACY.md). With {@code RUNECLANS_HUB_MEMBER_PRIVACY=on} and the hub
@@ -27,6 +30,9 @@ import java.util.concurrent.TimeUnit;
  * so a save held while the hub is down can never land after a newer one: a held "show" is replaced by the "hide" that follows it. A send
  * the hub can't take now is tried again every {@value #RETRY_SECONDS} seconds; one it refuses is dropped. What is still held when the bot
  * stops is lost: the hub catches up on the member's next save or the next {@code MoveTool copy member-privacy}.
+ * <p>
+ * Each bot process sends what it saved on its own lane, so the newest-wins rule holds within one process. Two processes saving the same
+ * row at nearly the same moment can reach the hub in either order; the member's next save puts it right.
  */
 @BConfiguration
 public class HubMemberPrivacy {
@@ -47,6 +53,8 @@ public class HubMemberPrivacy {
     /** Hub path to the newest body not yet taken by the hub, oldest first. */
     private final Map<String, String> held = new LinkedHashMap<>();
     private final Object flushing = new Object();
+    /** A flush is waiting on the lane: a burst of saves queues one round, not one each. */
+    private final AtomicBoolean flushQueued = new AtomicBoolean();
 
     /** The bot's instance. A factory, because the framework needs a service class to have exactly one constructor and tests use it. */
     @BService
@@ -130,11 +138,18 @@ public class HubMemberPrivacy {
             held.remove(path); // the newest goes to the back, behind the ones held longer
             held.put(path, body);
         }
+        if (!flushQueued.compareAndSet(false, true)) return; // the round already waiting sends this too
         try {
-            lane.execute(this::flush);
+            lane.execute(this::queuedFlush);
         } catch (RuntimeException e) {
+            flushQueued.set(false);
             log.warn("Member privacy changes couldn't be queued for the hub: {}", e.getClass().getSimpleName()); // tried again on the next round
         }
+    }
+
+    private void queuedFlush() {
+        flushQueued.set(false); // cleared first: a save from here on queues the next round
+        flush();
     }
 
     /**
@@ -144,20 +159,25 @@ public class HubMemberPrivacy {
     void flush() {
         if (sender == null) return;
         synchronized (flushing) {
-            Map<String, String> round;
+            List<String> round;
             synchronized (this) {
-                round = new LinkedHashMap<>(held);
+                round = new ArrayList<>(held.keySet());
             }
-            for (Map.Entry<String, String> e : round.entrySet()) {
+            for (String path : round) {
+                String body;
+                synchronized (this) {
+                    body = held.get(path); // the newest, re-read: a save during this round is sent, not the body it replaced
+                }
+                if (body == null) continue;
                 RuneClansHubClient.Answer a;
                 try {
-                    a = sender.put(e.getKey(), e.getValue());
+                    a = sender.put(path, body);
                 } catch (RuntimeException ex) {
                     a = null;
                 }
                 if (a == null || a.status() == 429 || a.status() >= 500) continue; // kept for the next round
                 synchronized (this) {
-                    held.remove(e.getKey(), e.getValue()); // a newer body saved meanwhile stays, and goes next round
+                    held.remove(path, body); // a newer body saved while this one was sent stays, and goes next round
                 }
                 if (!a.ok()) log.warn("The hub refused a member privacy change ({}).", a.status());
             }
