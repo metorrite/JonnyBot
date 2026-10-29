@@ -14,8 +14,9 @@ import java.util.function.Function;
 /**
  * The bot's side of the hub's alliance league routes (T-759, RuneClan docs/ALLIANCE-LEAGUE.md 8 and 10; hub T-756 {@code LeagueAppRoutes}),
  * with the bot's own first-party key (scope {@code leagues:report}). Reads go through the hub client's cache under the {@code leagues} tag
- * (a {@code league.*} feed change empties them); writes go through its queue, so a hub that is briefly down gets them a little later.
- * Off (the hub client off) asks nothing and refuses every write.
+ * (a {@code league.*} feed change empties them, and so does every write of this bot's own, so the next read is never the copy from before
+ * it); writes go through its queue, so a hub that is briefly down gets them a little later. Off (the hub client off) asks nothing and
+ * refuses every write.
  */
 @BConfiguration
 public class LeagueHub {
@@ -31,27 +32,34 @@ public class LeagueHub {
 
     private final Function<String, RuneClansHubClient.Read> reader;
     private final Writer writer;
+    private final Runnable afterWrite;
 
     /** The bot's instance. A factory, because the framework needs a service class to have exactly one constructor and tests use it. */
     @BService
     public static LeagueHub leagueHub(RuneClansHubClient client) {
         if (!client.enabled()) return off();
-        return new LeagueHub(path -> client.read(path, FRESH, TAG), (method, path, body) -> client.write(method, path, body, null));
+        return new LeagueHub(path -> client.read(path, FRESH, TAG), (method, path, body) -> client.write(method, path, body, null), () -> client.forget(TAG));
     }
 
-    LeagueHub(Function<String, RuneClansHubClient.Read> reader, Writer writer) {
+    LeagueHub(Function<String, RuneClansHubClient.Read> reader, Writer writer, Runnable afterWrite) {
         this.reader = reader;
         this.writer = writer;
+        this.afterWrite = afterWrite == null ? () -> { } : afterWrite;
     }
 
     /** The hub client is off: nothing is asked, every write is refused. */
     public static LeagueHub off() {
-        return new LeagueHub(null, null);
+        return new LeagueHub(null, null, null);
     }
 
     /** A stub hub (for tests). */
     public static LeagueHub on(Function<String, RuneClansHubClient.Read> reader, Writer writer) {
-        return new LeagueHub(reader, writer);
+        return new LeagueHub(reader, writer, null);
+    }
+
+    /** A stub hub whose {@code afterWrite} is watched (for tests). */
+    public static LeagueHub on(Function<String, RuneClansHubClient.Read> reader, Writer writer, Runnable afterWrite) {
+        return new LeagueHub(reader, writer, afterWrite);
     }
 
     public boolean enabled() {
@@ -87,7 +95,7 @@ public class LeagueHub {
         DataObject body = DataObject.empty().put("guildId", Long.toString(guildId)).put("eventId", eventId == null ? null : Long.toString(eventId));
         if (eventId != null && name != null && !name.isBlank()) body.put("name", name.strip());
         if (eventId != null && url != null && url.startsWith("https://")) body.put("url", url);
-        return writer.write("POST", "/v1/leagues/" + leagueId + "/rounds/" + round + "/event", body.toString());
+        return written(writer.write("POST", "/v1/leagues/" + leagueId + "/rounds/" + round + "/event", body.toString()));
     }
 
     /**
@@ -98,7 +106,13 @@ public class LeagueHub {
         if (!enabled()) return new HubWriteQueue.Result(HubWriteQueue.Outcome.REFUSED, null);
         DataObject body = DataObject.empty().put("guildId", Long.toString(guildId)).put("clans", clans);
         if (note != null && !note.isBlank()) body.put("note", note.strip().length() > MAX_NOTE ? note.strip().substring(0, MAX_NOTE) : note.strip());
-        return writer.write("POST", "/v1/leagues/" + leagueId + "/rounds/" + round + "/results", body.toString());
+        return written(writer.write("POST", "/v1/leagues/" + leagueId + "/rounds/" + round + "/results", body.toString()));
+    }
+
+    /** A write that was sent or queued changes the server's leagues: the cached league answers go, so the next read asks the hub. */
+    private HubWriteQueue.Result written(HubWriteQueue.Result result) {
+        if (result != null && result.outcome() != HubWriteQueue.Outcome.REFUSED) afterWrite.run();
+        return result;
     }
 
     /** The hub's message for a refused write, for the dashboard. */

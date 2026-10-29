@@ -71,6 +71,7 @@ class LeagueAdminApiTest {
         when(events.event(GUILD, 77)).thenReturn(Optional.of(event(77, ClanVsClan.KEY, Status.RUNNING)));
         when(events.event(GUILD, 78)).thenReturn(Optional.of(event(78, "bingo", Status.RUNNING)));
         when(events.event(GUILD, 79)).thenReturn(Optional.empty());
+        when(events.event(GUILD, 80)).thenReturn(Optional.of(event(80, ClanVsClan.KEY, Status.CANCELLED)));
     }
 
     private void hubAnswers(int status, DataObject json) {
@@ -122,6 +123,7 @@ class LeagueAdminApiTest {
         assertTrue(written.get(0).contains("\"name\":\"Boss night\""));
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "POST", parts, () -> DataObject.empty().put("eventId", "78"))).status, "not clan-vs-clan");
         assertEquals(404, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "POST", parts, () -> DataObject.empty().put("eventId", "79"))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "POST", parts, () -> DataObject.empty().put("eventId", "80"))).status, "cancelled");
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "POST", parts, () -> DataObject.empty().put("eventId", "x"))).status);
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "POST", new String[]{"leagues", "nope", "rounds", "2", "event"}, DataObject::empty)).status);
         assertEquals(405, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "GET", parts, DataObject::empty)).status);

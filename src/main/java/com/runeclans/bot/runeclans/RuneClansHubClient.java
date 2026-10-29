@@ -156,6 +156,11 @@ public class RuneClansHubClient {
         return HubChanges.evict(cache, kind, data);
     }
 
+    /** Drops every cached answer under {@code tag}: what a module does after its own write, so its next read is not its stale copy (T-759). */
+    public int forget(String tag) {
+        return cache == null ? 0 : cache.evictTag(tag);
+    }
+
     HubCache cache() {
         return cache;
     }
