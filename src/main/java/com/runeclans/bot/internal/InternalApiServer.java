@@ -151,11 +151,12 @@ public class InternalApiServer {
         }
 
         try {
-            int port = botConfig.getInternalApiPort();
-            HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
             // T-746: the api role has no servers or members of its own, so it passes those routes on to the gateway process
+            // (built before the port is taken, so an unusable address leaves nothing bound)
             GatewayForward forward = BotRole.current().forwardsToGateway() ? gatewayForward() : null;
             if (BotRole.current().forwardsToGateway() && forward == null) return;
+            int port = botConfig.getInternalApiPort();
+            HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
             if (forward != null) log.info("BOT_ROLE=api: routes that need servers or members are answered by the gateway process");
             Predicate<HttpExchange> internal = exchange -> {
                 String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
