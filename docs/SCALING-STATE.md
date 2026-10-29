@@ -233,6 +233,7 @@ has more than one replica).
 | `twitch`, `kick`, `feeds` | `twitch/TwitchService`, `kick/KickService`, `feed/FeedService` | api fetches once; posts filtered to own shards (or sent through the outbox) |
 | `presence-members` | `presence/PresenceMemberLoader` | gateway (own shards) |
 | `linked-roles` | `linkedroles/LinkedRoles` | api |
+| `rank-weekly` | `internal/RankWeeklyScheduler` | gateway (Discord names and channels for the weekly congrats) |
 | `premium-expiry`, `billing-reconcile` | `premium/Premium`, `premium/Billing` | api |
 | `guild-retention` | `retention/GuildRetentionService` | api, see M9 |
 | `plugin-retention`, `message-log-purge`, `clan-site-cleanup` | `plugin/...`, `messagelog/...`, `clansite/...` | api (database only) |

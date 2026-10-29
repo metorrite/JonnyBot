@@ -47,6 +47,8 @@ public final class LaneOwners {
             Map.entry("skill-of-the-week", Owner.GATEWAY),
             Map.entry("plugin-xp-points", Owner.GATEWAY),
             Map.entry("clan-seasons", Owner.GATEWAY),
+            // the rank-up advisor's weekly update reads Discord names and channels from the cache
+            Map.entry("rank-weekly", Owner.GATEWAY),
             Map.entry("event-draws", Owner.GATEWAY),
             Map.entry("event-board-updates", Owner.GATEWAY),
             Map.entry("guild-retention", Owner.GATEWAY),

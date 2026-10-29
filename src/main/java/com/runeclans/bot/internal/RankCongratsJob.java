@@ -13,9 +13,10 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import java.util.EnumSet;
 
 /**
- * Posts the rank-up advisor's optional congrats message (T-594) when staff tick a member off on the Clan health page. The text is the site
- * owner's, so it allows no mentions at all. Not idempotent: a second run would post it twice, so the outbox never repeats it after a fault that
- * leaves it unclear whether Discord took it.
+ * Posts the rank-up advisor's weekly congrats message (T-594, Drake's answer: the members due last week who got their rank), queued by
+ * {@link SiteRankAdvisor#sweep} when the site's owner turned auto post on. A message over Discord's limit goes out as several posts, cut at
+ * line ends. The text is the site owner's, so it allows no mentions at all. Not idempotent: a second run would post it twice, so the outbox
+ * never repeats it after a fault that leaves it unclear whether Discord took it.
  */
 @BService
 public class RankCongratsJob implements DiscordJobHandler {
@@ -43,7 +44,12 @@ public class RankCongratsJob implements DiscordJobHandler {
         if (!channel.canTalk()) throw new DiscordJobs.Refused("The bot can't post in #" + channel.getName() + " any more.");
         String text = job.payload().getString("text", "");
         if (text.isBlank()) throw new DiscordJobs.Refused("The congrats message is empty.");
-        Message sent = DiscordJobs.send(channel.sendMessage(text).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)));
-        return DataObject.empty().put("messageId", sent.getId()).put("channelId", channel.getId()).put("jumpUrl", sent.getJumpUrl());
+        Message first = null;
+        for (String part : RankAdvisorRules.chunks(text, RankAdvisorRules.DISCORD_MAX)) {
+            Message sent = DiscordJobs.send(channel.sendMessage(part).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)));
+            if (first == null) first = sent;
+        }
+        if (first == null) throw new DiscordJobs.Refused("The congrats message is empty.");
+        return DataObject.empty().put("messageId", first.getId()).put("channelId", channel.getId()).put("jumpUrl", first.getJumpUrl());
     }
 }
