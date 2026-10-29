@@ -47,8 +47,12 @@ public class SkillWeekAdminApi implements AdminRouteExtension {
         if (method.equals("PUT")) {
             DataObject sent = body.get();
             Long channel = channelOf(sent);
-            if (channel != null && guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channel) == null) {
-                throw new ApiError(400, "Choose a channel of this server for the announcements.");
+            if (channel != null) {
+                var target = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channel);
+                if (target == null) throw new ApiError(400, "Choose a channel of this server for the announcements.");
+                if (!guild.getSelfMember().hasPermission(target, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND)) {
+                    throw new ApiError(400, "The bot needs to see and send messages in #" + target.getName() + " to announce the week there.");
+                }
             }
             return save(guild.getIdLong(), actor.getIdLong(), sent);
         }

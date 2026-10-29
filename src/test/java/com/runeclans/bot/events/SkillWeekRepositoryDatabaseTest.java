@@ -39,7 +39,7 @@ class SkillWeekRepositoryDatabaseTest {
     @AfterEach
     void cleanUp() throws Exception {
         try (Connection c = supplier.getConnection()) {
-            for (String table : List.of("skill_week", "skill_week_settings", "skill_week_vote", "skill_week_enrolled")) {
+            for (String table : List.of("skill_week", "skill_week_settings", "skill_week_vote", "skill_week_enrolled", "skill_week_opt_out")) {
                 try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings." + table + " WHERE guild_id = ?")) {
                     s.setLong(1, GUILD);
                     s.executeUpdate();
@@ -161,5 +161,14 @@ class SkillWeekRepositoryDatabaseTest {
         assertFalse(repository.markEnrolled(GUILD, MONDAY, 101));
         assertTrue(repository.markEnrolled(GUILD, MONDAY.plusSeconds(7 * 86_400), 101), "next week is a new week");
         assertEquals(java.util.Set.of(101L), repository.enrolled(GUILD, MONDAY));
+    }
+    @Test
+    void aMemberOptsOutOfAutoEnrolAndBackIn() {
+        assertEquals(java.util.Set.of(), repository.optedOut(GUILD));
+        repository.setOptOut(GUILD, 101, true);
+        repository.setOptOut(GUILD, 101, true);
+        assertEquals(java.util.Set.of(101L), repository.optedOut(GUILD));
+        repository.setOptOut(GUILD, 101, false);
+        assertEquals(java.util.Set.of(), repository.optedOut(GUILD));
     }
 }

@@ -190,6 +190,7 @@ public class MemberApi {
                 case "highlights/ignore" -> method.equals("POST") ? highlights.ignore(guild, userId, body) : null;
                 case "level" -> method.equals("GET") ? chatLevel.get(guild, userId) : null;
                 case "skill-week/vote" -> method.equals("GET") ? skillWeek.get(guild, userId) : method.equals("POST") ? skillWeek.vote(guild, userId, body) : null;
+                case "skill-week/auto" -> method.equals("GET") ? skillWeek.auto(guild, userId) : method.equals("POST") ? skillWeek.setAuto(guild, userId, body) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
                 case "signups/leave" -> method.equals("POST") ? leaveSignup(guild, userId, body) : null;

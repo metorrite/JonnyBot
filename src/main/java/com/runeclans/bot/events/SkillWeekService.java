@@ -316,6 +316,7 @@ public class SkillWeekService {
         net.dv8tion.jda.api.entities.Guild guild = current == null ? null : Shards.guild(current, guildId);
         if (current != null && guild == null) return 0; // the bot isn't in the server (any more)
         Set<Long> already = weeks.enrolled(guildId, start);
+        already.addAll(weeks.optedOut(guildId)); // members who asked not to be entered by themselves
         Set<Long> playing = new java.util.HashSet<>();
         for (EventRepository.Participant p : repository.participants(eventId)) playing.add(p.userId());
         java.time.LocalDate today = now.atZone(java.time.ZoneOffset.UTC).toLocalDate();
@@ -333,20 +334,47 @@ public class SkillWeekService {
                     continue; // their grant doesn't share who they are on Discord
                 }
                 if (playing.contains(user) || already.contains(user)) continue;
-                if (guild != null && guild.getMemberById(user) == null) continue; // not a member the bot sees here
-                if (!weeks.markEnrolled(guildId, start, user)) continue;
+                if (guild != null && !inServer(guild, user)) continue; // not a member of this server
                 already.add(user);
                 try {
                     service.join(guildId, eventId, guildId, user, null, true, null);
                     playing.add(user);
                     added++;
                 } catch (EventProblem e) {
+                    // refused for a reason of its own (e.g. a full event): not tried again this week
                     log.debug("Skill of the week in {}: {} not auto-enrolled: {}", guildId, user, e.getMessage());
+                } catch (RuntimeException e) {
+                    // the join itself failed (the database): left unmarked, so the next pass tries again
+                    log.warn("Skill of the week in {}: could not auto-enrol {}", guildId, user, e);
+                    continue;
                 }
+                weeks.markEnrolled(guildId, start, user);
             }
         }
         if (added > 0) log.info("Skill of the week in {}: {} member(s) auto-enrolled", guildId, added);
         return added;
+    }
+
+    /** Whether the user is a member of the server: from the member cache, else asked of Discord (at most 5 s; this runs in the sweep). */
+    private static boolean inServer(net.dv8tion.jda.api.entities.Guild guild, long user) {
+        if (guild.getMemberById(user) != null) return true;
+        try {
+            return guild.retrieveMemberById(user).timeout(5, TimeUnit.SECONDS).complete() != null;
+        } catch (RuntimeException e) {
+            return false; // not a member (Unknown Member), or Discord didn't answer: tried again on the next pass
+        }
+    }
+
+    /** The member's own auto-enrol choice for the clan website: whether the server enters members by themselves, and whether they opted out. */
+    public DataObject autoView(long guildId, long userId) {
+        Settings settings = weeks.settings(guildId);
+        return DataObject.empty().put("autoEnrol", settings.enabled() && settings.options().autoEnrol()).put("optedOut", weeks.optedOut(guildId).contains(userId));
+    }
+
+    /** Keeps the member out of (or lets them back into) auto-enrol in this server, answering {@link #autoView}. */
+    public DataObject setOptOut(long guildId, long userId, boolean optedOut) {
+        weeks.setOptOut(guildId, userId, optedOut);
+        return autoView(guildId, userId);
     }
 
     // ---------- the vote (T-711) ----------
@@ -430,7 +458,9 @@ public class SkillWeekService {
                 .put("next", settings.rota().isEmpty() ? null : SkillWeekRules.skillAt(settings.rota(), settings.position()))
                 .put("mode", options.mode().name().toLowerCase(java.util.Locale.ROOT)).put("vote", voteView(guildId, null));
         // the announcement channel and auto-enrol are the dashboard's (staff) business, not the clan website's
-        if (names.staff()) out.put("announceChannelId", options.announceChannelId() == null ? null : String.valueOf(options.announceChannelId())).put("autoEnrol", options.autoEnrol());
+        // whether members are entered by themselves is public: a member can opt out from the clan site
+        out.put("autoEnrol", options.autoEnrol());
+        if (names.staff()) out.put("announceChannelId", options.announceChannelId() == null ? null : String.valueOf(options.announceChannelId()));
         Instant start = SkillWeekRules.weekStart(now);
         DataObject current = null;
         DataObject last = null;

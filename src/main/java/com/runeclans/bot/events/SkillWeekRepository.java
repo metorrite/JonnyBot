@@ -104,6 +104,15 @@ public class SkillWeekRepository {
                     enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     PRIMARY KEY (guild_id, week_start, user_id)
                 );
+                """,
+                // members who asked not to be entered by themselves (auto-enrol, T-711): one row per member per server
+                """
+                CREATE TABLE IF NOT EXISTS younglings.skill_week_opt_out (
+                    guild_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    opted_out_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, user_id)
+                );
                 """));
     }
 
@@ -370,6 +379,35 @@ public class SkillWeekRepository {
             throw new RuntimeException("Failed to read the auto-enrolled members", e);
         }
         return out;
+    }
+
+    /** Members of the server who asked auto-enrol to leave them out. */
+    public java.util.Set<Long> optedOut(long guildId) {
+        java.util.Set<Long> out = new java.util.HashSet<>();
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT user_id FROM younglings.skill_week_opt_out WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) out.add(rs.getLong(1));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read who opted out of auto-enrol", e);
+        }
+        return out;
+    }
+
+    /** Leaves the member out of auto-enrol in the server ({@code optedOut}), or lets them back in. */
+    public void setOptOut(long guildId, long userId, boolean optedOut) {
+        String sql = optedOut
+                ? "INSERT INTO younglings.skill_week_opt_out (guild_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING"
+                : "DELETE FROM younglings.skill_week_opt_out WHERE guild_id = ? AND user_id = ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, guildId);
+            s.setLong(2, userId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save an auto-enrol choice", e);
+        }
     }
 
     public void setEvent(long guildId, Instant start, long eventId) {

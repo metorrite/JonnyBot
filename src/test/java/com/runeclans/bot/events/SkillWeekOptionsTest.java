@@ -135,7 +135,7 @@ class SkillWeekOptionsTest {
     }
 
     @Test
-    void theClanWebsiteSeesTheVoteButNotTheStaffOptions() {
+    void theClanWebsiteSeesTheVoteAndAutoEnrolButNotTheChannel() {
         when(weeks.settings(GUILD)).thenReturn(settings(new Options(Mode.VOTE, CHANNEL, true)));
         when(weeks.recent(GUILD, 4)).thenReturn(List.of());
         when(weeks.votes(GUILD, NEXT_MONDAY)).thenReturn(Map.of());
@@ -149,7 +149,7 @@ class SkillWeekOptionsTest {
         DataObject site = service.publicView(GUILD, 10);
         assertTrue(site.getObject("vote").getBoolean("open"));
         assertFalse(site.hasKey("announceChannelId"));
-        assertFalse(site.hasKey("autoEnrol"));
+        assertTrue(site.getBoolean("autoEnrol"), "public, so a member can opt out from the site");
     }
 
     // ---------- announcements ----------
@@ -245,5 +245,47 @@ class SkillWeekOptionsTest {
         when(hub.xpGainers(anyLong(), any())).thenReturn(null);
         assertEquals(0, service.autoEnrol(GUILD, NOW));
         verify(events, never()).join(anyLong(), anyLong(), anyLong(), anyLong(), any(), anyBoolean(), any());
+    }
+    private void autoEnrolWeek() {
+        when(weeks.settings(GUILD)).thenReturn(settings(new Options(Mode.ROTA, null, true)));
+        when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.of(new Week(GUILD, MONDAY, 15, 42L, null, null)));
+        when(repository.event(GUILD, 42L)).thenReturn(Optional.of(running(42)));
+        when(repository.participants(42L)).thenReturn(List.of());
+        when(weeks.enrolled(GUILD, MONDAY)).thenReturn(new java.util.HashSet<>());
+        when(hub.xpGainers(eq(GUILD), any())).thenReturn(gainers(String.valueOf(ALICE), String.valueOf(BOB)));
+    }
+
+    @Test
+    void membersWhoOptedOutAreNeverEnteredByThemselves() {
+        autoEnrolWeek();
+        when(weeks.optedOut(GUILD)).thenReturn(new java.util.HashSet<>(Set.of(ALICE)));
+        assertEquals(1, service.autoEnrol(GUILD, NOW));
+        verify(events).join(GUILD, 42L, GUILD, BOB, null, true, null);
+        verify(events, never()).join(anyLong(), anyLong(), anyLong(), eq(ALICE), any(), anyBoolean(), any());
+        verify(weeks, never()).markEnrolled(GUILD, MONDAY, ALICE);
+    }
+
+    @Test
+    void aJoinThatFailedIsTriedAgainButARefusalIsNot() {
+        autoEnrolWeek();
+        when(weeks.optedOut(GUILD)).thenReturn(new java.util.HashSet<>());
+        Mockito.doThrow(new RuntimeException("database down")).when(events).join(GUILD, 42L, GUILD, ALICE, null, true, null);
+        Mockito.doThrow(new EventProblem(409, "The event is full.")).when(events).join(GUILD, 42L, GUILD, BOB, null, true, null);
+        assertEquals(0, service.autoEnrol(GUILD, NOW));
+        verify(weeks, never()).markEnrolled(GUILD, MONDAY, ALICE);
+        verify(weeks).markEnrolled(GUILD, MONDAY, BOB);
+    }
+
+    @Test
+    void aMemberChoosesToBeLeftOut() {
+        when(weeks.settings(GUILD)).thenReturn(settings(new Options(Mode.ROTA, null, true)));
+        when(weeks.optedOut(GUILD)).thenReturn(Set.of(ALICE));
+        DataObject view = service.setOptOut(GUILD, ALICE, true);
+        verify(weeks).setOptOut(GUILD, ALICE, true);
+        assertTrue(view.getBoolean("autoEnrol"));
+        assertTrue(view.getBoolean("optedOut"));
+        when(weeks.settings(GUILD)).thenReturn(settings(Options.OFF));
+        assertFalse(service.autoView(GUILD, BOB).getBoolean("autoEnrol"));
+        assertFalse(service.autoView(GUILD, BOB).getBoolean("optedOut"));
     }
 }
