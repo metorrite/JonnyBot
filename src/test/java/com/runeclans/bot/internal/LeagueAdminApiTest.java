@@ -6,12 +6,14 @@ import com.runeclans.bot.events.EventRepository.Event;
 import com.runeclans.bot.events.EventRules.ScoringMode;
 import com.runeclans.bot.events.EventRules.Scope;
 import com.runeclans.bot.events.EventRules.Status;
+import com.runeclans.bot.leagues.LeagueDiscordStore;
 import com.runeclans.bot.leagues.LeagueHub;
 import com.runeclans.bot.leagues.LeagueReporter;
 import com.runeclans.bot.runeclans.HubWriteQueue;
 import com.runeclans.bot.runeclans.RuneClansHubClient;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** The dashboard's league routes (T-759): the list with the server's clan-vs-clan events, attaching one of them, and the refusals. */
@@ -45,6 +48,7 @@ class LeagueAdminApiTest {
     private final List<String> written = new ArrayList<>();
     private EventRepository events;
     private LeagueReporter reporter;
+    private LeagueDiscordStore discord;
     private LeagueAdminApi api;
     private Guild guild;
     private Member actor;
@@ -62,7 +66,9 @@ class LeagueAdminApiTest {
         });
         events = mock(EventRepository.class);
         reporter = mock(LeagueReporter.class);
-        api = new LeagueAdminApi(hub, reporter, events);
+        discord = mock(LeagueDiscordStore.class);
+        when(discord.channel(GUILD)).thenReturn(Optional.empty());
+        api = new LeagueAdminApi(hub, reporter, events, discord);
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
         actor = mock(Member.class);
@@ -103,8 +109,38 @@ class LeagueAdminApiTest {
     }
 
     @Test
+    void theLeagueChannelIsSavedOnlyWhenTheBotCanPostThere() {
+        String channelId = "3".repeat(18);
+        String otherId = "4".repeat(18);
+        long channelNo = Long.parseLong(channelId);
+        GuildMessageChannel channel = mock(GuildMessageChannel.class);
+        when(channel.getIdLong()).thenReturn(channelNo);
+        when(channel.canTalk()).thenReturn(true);
+        when(guild.getChannelById(GuildMessageChannel.class, channelId)).thenReturn(channel);
+        when(actor.getIdLong()).thenReturn(7L);
+        DataObject out = api.route(guild, actor, "PUT", new String[]{"leagues", "settings"}, () -> DataObject.empty().put("channelId", channelId));
+        assertEquals(channelId, out.getString("channelId"));
+        verify(discord).setChannel(GUILD, channelNo, 7L);
+        out = api.route(guild, actor, "PUT", new String[]{"leagues", "settings"}, () -> DataObject.empty().put("channelId", null));
+        assertTrue(out.isNull("channelId"));
+        verify(discord).setChannel(GUILD, null, 7L);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class,
+                () -> api.route(guild, actor, "PUT", new String[]{"leagues", "settings"}, () -> DataObject.empty().put("channelId", "100"))).status, "not a channel id");
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class,
+                () -> api.route(guild, actor, "PUT", new String[]{"leagues", "settings"}, () -> DataObject.empty().put("channelId", otherId))).status, "not a channel of this server");
+        when(channel.canTalk()).thenReturn(false);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class,
+                () -> api.route(guild, actor, "PUT", new String[]{"leagues", "settings"}, () -> DataObject.empty().put("channelId", channelId))).status, "the bot can't post there");
+        assertEquals(405, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "GET", new String[]{"leagues", "settings"}, DataObject::empty)).status);
+        // the list says which channel is picked
+        when(discord.channel(GUILD)).thenReturn(Optional.of(channelNo));
+        hubAnswers(404, DataObject.empty());
+        assertEquals(channelId, api.route(guild, actor, "GET", new String[]{"leagues"}, DataObject::empty).getString("channelId"));
+    }
+
+    @Test
     void offSaysSoWithoutAskingTheHub() {
-        LeagueAdminApi off = new LeagueAdminApi(LeagueHub.off(), reporter, events);
+        LeagueAdminApi off = new LeagueAdminApi(LeagueHub.off(), reporter, events, discord);
         DataObject out = off.route(guild, actor, "GET", new String[]{"leagues"}, DataObject::empty);
         assertFalse(out.getBoolean("on"));
         assertFalse(out.getBoolean("clan"));

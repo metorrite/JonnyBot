@@ -5,6 +5,7 @@ import com.runeclans.bot.events.EventRepository;
 import com.runeclans.bot.events.EventRepository.Event;
 import com.runeclans.bot.events.EventRules.Status;
 import com.runeclans.bot.internal.TicketAdminApi.ApiError;
+import com.runeclans.bot.leagues.LeagueDiscordStore;
 import com.runeclans.bot.leagues.LeagueHub;
 import com.runeclans.bot.leagues.LeagueReporter;
 import com.runeclans.bot.runeclans.HubWriteQueue;
@@ -12,6 +13,7 @@ import com.runeclans.bot.runeclans.RuneClansHubClient;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -41,11 +43,13 @@ public class LeagueAdminApi implements AdminRouteExtension {
     private final LeagueHub hub;
     private final LeagueReporter reporter;
     private final EventRepository events;
+    private final LeagueDiscordStore discord;
 
-    public LeagueAdminApi(LeagueHub hub, LeagueReporter reporter, EventRepository events) {
+    public LeagueAdminApi(LeagueHub hub, LeagueReporter reporter, EventRepository events, LeagueDiscordStore discord) {
         this.hub = hub;
         this.reporter = reporter;
         this.events = events;
+        this.discord = discord;
     }
 
     @Override
@@ -54,6 +58,11 @@ public class LeagueAdminApi implements AdminRouteExtension {
         if (parts.length == 1) {
             AdminRouteExtension.requireMethod(method, "GET");
             return list(guild);
+        }
+        // leagues/settings: the channel the server's league posts go to (T-760)
+        if (parts.length == 2 && parts[1].equals("settings")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            return saveSettings(guild, actor, body.get());
         }
         // leagues/{leagueId}/rounds/{n}/{event|detach|report}
         if (parts.length != 5 || !parts[2].equals("rounds")) return null;
@@ -72,7 +81,7 @@ public class LeagueAdminApi implements AdminRouteExtension {
 
     /** The hub's answer for this server plus the clan-vs-clan events it could attach; {@code clan: false} when the server has no clan on the hub. */
     DataObject list(Guild guild) {
-        DataObject out = DataObject.empty().put("on", hub.enabled());
+        DataObject out = DataObject.empty().put("on", hub.enabled()).put("channelId", discord.channel(guild.getIdLong()).map(c -> Long.toString(c)).orElse(null));
         if (!hub.enabled()) return out.put("clan", false).put("leagues", DataArray.empty()).put("events", DataArray.empty());
         RuneClansHubClient.Answer answer = hub.guildLeagues(guild.getIdLong());
         if (answer == null) throw new ApiError(503, "Can't reach RuneClans right now. Try again in a minute.");
@@ -92,6 +101,22 @@ public class LeagueAdminApi implements AdminRouteExtension {
                     .put("startsAt", e.startsAt() == null ? null : e.startsAt().toString()).put("endsAt", e.endsAt() == null ? null : e.endsAt().toString()));
         }
         return out.put("events", list);
+    }
+
+    /** {@code PUT leagues/settings {channelId|null}}: where the league posts go; a channel the bot can post in, or none. */
+    DataObject saveSettings(Guild guild, Member actor, DataObject body) {
+        Long channelId = null;
+        if (body.hasKey("channelId") && !body.isNull("channelId")) {
+            String raw = body.getString("channelId", "").strip();
+            if (!raw.matches("\\d{15,20}")) throw new ApiError(400, "Pick a channel of this server, or none.");
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, raw);
+            if (channel == null) throw new ApiError(400, "That channel isn't in this server.");
+            if (!channel.canTalk()) throw new ApiError(400, "The bot can't post in #" + channel.getName() + ".");
+            channelId = channel.getIdLong();
+        }
+        discord.setChannel(guild.getIdLong(), channelId, actor.getIdLong());
+        log.info("Dashboard: {} set the league channel of {} to {}", actor.getId(), guild.getId(), channelId);
+        return DataObject.empty().put("ok", true).put("channelId", channelId == null ? null : Long.toString(channelId));
     }
 
     DataObject attach(Guild guild, Member actor, String leagueId, int round, DataObject body) {
