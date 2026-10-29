@@ -46,7 +46,8 @@ class SkillWeekServiceTest {
     private final PlayerLinkService links = Mockito.mock(PlayerLinkService.class);
     private final MemberProfileRepository profiles = Mockito.mock(MemberProfileRepository.class);
     private final PluginVisibilityRepository plugins = Mockito.mock(PluginVisibilityRepository.class);
-    private final SkillWeekService service = new SkillWeekService(weeks, events, repository, Mockito.mock(PluginXpTracker.class), hub, links, profiles, plugins)
+    private final com.runeclans.bot.discord.jobs.DiscordOutbox outbox = Mockito.mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class);
+    private final SkillWeekService service = new SkillWeekService(weeks, events, repository, Mockito.mock(PluginXpTracker.class), hub, links, profiles, plugins, outbox)
             .withClock(Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test

@@ -23,6 +23,12 @@ import java.util.concurrent.TimeUnit;
  * connection), and the next replica to ask takes over. A leader that finds its connection broken stops leading at once, before
  * reconnecting. Worst case two replicas both run api work for up to one check (a leader whose connection broke, before it notices), which
  * those lanes already tolerate: their writes are idempotent or guarded in Postgres.
+ *
+ * <p>The lock query gives up after {@link #QUERY_TIMEOUT_SECONDS} seconds, so a follower on a half-open connection drops it and reconnects
+ * instead of waiting forever. A leader cut off from the database by the network can't release the lock itself: Postgres frees it only
+ * when it notices the session is dead, which with default TCP keepalives can take about two hours, and no api replica leads meanwhile.
+ * Before running more than one api replica, set the database's {@code tcp_keepalives_idle} / {@code tcp_keepalives_interval} (or
+ * {@code idle_session_timeout}) to a minute or two.
  */
 @BService
 public class ApiLeaderElection {
@@ -30,6 +36,7 @@ public class ApiLeaderElection {
     static final int CHECK_SECONDS = 15;
     /** The advisory lock's key: any fixed number no other lock in the bot uses ("RCAPI" in ASCII). */
     static final long LOCK_KEY = 0x5243415049L;
+    static final int QUERY_TIMEOUT_SECONDS = 5;
 
     public ApiLeaderElection(BotConfig config) {
         if (BotRole.current() != BotRole.API) return;
@@ -68,6 +75,7 @@ public class ApiLeaderElection {
                 if (!leading) {
                     try (PreparedStatement s = connection.prepareStatement("SELECT pg_try_advisory_lock(?)")) {
                         s.setLong(1, LOCK_KEY);
+                        s.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
                         try (ResultSet rs = s.executeQuery()) {
                             leading = rs.next() && rs.getBoolean(1);
                         }

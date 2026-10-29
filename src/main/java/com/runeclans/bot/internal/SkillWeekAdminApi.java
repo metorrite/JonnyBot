@@ -22,8 +22,11 @@ import java.util.function.Supplier;
  * <ul>
  *     <li>{@code GET skill-week}: the switch, the rota, the skill next in line, this week and its standings, last week's winners, and the skills to
  *     choose from</li>
- *     <li>{@code PUT skill-week} {@code {enabled, rota: [skillId...]}}: saves them. Switching on needs the bot connected to the RuneClans hub
- *     (the weeks are counted from its XP ledger) and at least one skill. Switching on opens this week's competition straight away.</li>
+ *     <li>{@code PUT skill-week} {@code {enabled, rota: [skillId...], mode, announceChannelId, autoEnrol}}: saves them. Switching on needs the
+ *     bot connected to the RuneClans hub (the weeks are counted from its XP ledger) and at least one skill. Switching on opens this week's
+ *     competition straight away. The options (T-711) are off unless sent: {@code mode} {@code "rota"} or {@code "vote"} (members vote for next
+ *     week's skill among the rota's on the clan website), {@code announceChannelId} a channel of this server (or null for no posts) and
+ *     {@code autoEnrol}.</li>
  * </ul>
  */
 @BService
@@ -41,9 +44,33 @@ public class SkillWeekAdminApi implements AdminRouteExtension {
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length != 1 || !parts[0].equals("skill-week")) return null;
-        if (method.equals("PUT")) return save(guild.getIdLong(), actor.getIdLong(), body.get());
+        if (method.equals("PUT")) {
+            DataObject sent = body.get();
+            Long channel = channelOf(sent);
+            if (channel != null) {
+                var target = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channel);
+                if (target == null) throw new ApiError(400, "Choose a channel of this server for the announcements.");
+                if (!guild.getSelfMember().hasPermission(target, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND)) {
+                    throw new ApiError(400, "The bot needs to see and send messages in #" + target.getName() + " to announce the week there.");
+                }
+            }
+            return save(guild.getIdLong(), actor.getIdLong(), sent);
+        }
         AdminRouteExtension.requireMethod(method, "GET");
         return overview(guild.getIdLong());
+    }
+
+    /** The announcement channel sent, or null for none; a value that isn't a Discord id is refused. */
+    static Long channelOf(DataObject body) {
+        if (!body.hasKey("announceChannelId") || body.isNull("announceChannelId")) return null;
+        String raw = body.get("announceChannelId").toString();
+        if (raw.isEmpty()) return null;
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "Choose a channel of this server for the announcements.");
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            throw new ApiError(400, "Choose a channel of this server for the announcements.");
+        }
     }
 
     DataObject overview(long guildId) {
@@ -61,11 +88,17 @@ public class SkillWeekAdminApi implements AdminRouteExtension {
         } catch (RuntimeException e) {
             throw new ApiError(400, "Choose each skill from the list.");
         }
+        String mode = body.getString("mode", "rota");
+        if (!mode.equals("rota") && !mode.equals("vote")) throw new ApiError(400, "Choose the rota or a members' vote.");
+        SkillWeekRepository.Options options = new SkillWeekRepository.Options(mode.equals("vote") ? SkillWeekRepository.Mode.VOTE : SkillWeekRepository.Mode.ROTA,
+                channelOf(body), body.getBoolean("autoEnrol", false));
         List<String> problems = SkillWeekRules.rotaProblems(rota, enabled);
+        if (enabled && options.mode() == SkillWeekRepository.Mode.VOTE && rota.size() < 2) problems.add("A vote needs at least two skills to choose from.");
         if (enabled && !weeks.available()) problems.add("Skill of the week counts XP from RuneSync, through the RuneClans hub, and this bot isn't connected to it.");
         if (!problems.isEmpty()) throw new ApiError(400, "Skill of the week can't be saved.", problems);
-        repository.save(guildId, enabled, rota, actorId);
-        log.info("Dashboard: {} saved skill of the week ({}, {} skills)", actorId, enabled ? "on" : "off", rota.size());
+        repository.save(guildId, enabled, rota, options, actorId);
+        log.info("Dashboard: {} saved skill of the week ({}, {} skills, {}, posts {}, auto-enrol {})", actorId, enabled ? "on" : "off", rota.size(), mode,
+                options.announceChannelId() == null ? "off" : "on", options.autoEnrol() ? "on" : "off");
         if (enabled) {
             // this week starts now rather than at the next pass
             try {
