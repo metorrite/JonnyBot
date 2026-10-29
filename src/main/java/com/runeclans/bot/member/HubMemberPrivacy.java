@@ -2,48 +2,83 @@ package com.runeclans.bot.member;
 
 import com.runeclans.bot.config.BotConfig;
 import com.runeclans.bot.member.MemberProfileRepository.PrivacyDefaults;
-import com.runeclans.bot.runeclans.HubWriteQueue;
 import com.runeclans.bot.runeclans.RuneClansHubClient;
+import com.runeclans.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BConfiguration;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.function.BiFunction;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Member privacy in the RuneClans hub (T-750, runeclans-hub docs/MEMBER-PRIVACY.md). With {@code RUNECLANS_HUB_MEMBER_PRIVACY=on} and the hub
  * client on, every member privacy change the bot saves (a member's own toggles, Site Admin > Member privacy) is also sent to the hub, so the
  * hub's XP rankings and member pages hide the same people. The bot is the one place these are edited (the website saves them through the
- * bot), so its tables stay the ones it reads and the hub gets each change after it. A write the hub can't take right now waits in the hub
- * client's queue (up to 5 minutes). What the hub had before the switch came on is moved with the hub's move tool ({@code member-privacy}).
- * Off, nothing is sent.
+ * bot), so its tables stay the ones it reads and the hub gets each change after it. What the hub had before the switch came on is moved
+ * with the hub's move tool ({@code member-privacy}). Off, nothing is sent.
+ * <p>
+ * Sends run on their own lane, never in the website's request. Each hub row (one path) keeps only its newest body until the hub takes it,
+ * so a save held while the hub is down can never land after a newer one: a held "show" is replaced by the "hide" that follows it. A send
+ * the hub can't take now is tried again every {@value #RETRY_SECONDS} seconds; one it refuses is dropped. What is still held when the bot
+ * stops is lost: the hub catches up on the member's next save or the next {@code MoveTool copy member-privacy}.
  */
 @BConfiguration
 public class HubMemberPrivacy {
     private static final Logger log = LoggerFactory.getLogger(HubMemberPrivacy.class);
     public static final String SETTING_ENV = "RUNECLANS_HUB_MEMBER_PRIVACY";
+    static final long RETRY_SECONDS = 30;
+    /** Hub rows held at most; past that a new one is dropped (and logged), never an older one replaced by surprise. */
+    static final int MAX_HELD = 10_000;
 
-    /** Sends a {@code PUT path body} through the hub client's write queue; null when off. */
-    private final BiFunction<String, String, HubWriteQueue.Result> writer;
+    /** {@code PUT path body} to the hub: its answer, or null when it couldn't be reached. */
+    public interface Sender {
+        RuneClansHubClient.Answer put(String path, String body);
+    }
+
+    /** Null when off. */
+    private final Sender sender;
+    private final Executor lane;
+    /** Hub path to the newest body not yet taken by the hub, oldest first. */
+    private final Map<String, String> held = new LinkedHashMap<>();
+    private final Object flushing = new Object();
 
     /** The bot's instance. A factory, because the framework needs a service class to have exactly one constructor and tests use it. */
     @BService
     public static HubMemberPrivacy hubMemberPrivacy(BotConfig config, RuneClansHubClient hub) {
         boolean on = on(config.getRuneClansSetting(SETTING_ENV));
         if (on && !hub.enabled()) log.warn("{} is on but the hub client is off (RUNECLANS_HUB_ENABLED): member privacy stays in the bot only.", SETTING_ENV);
-        else if (on) log.info("Member privacy changes are sent to the RuneClans hub.");
-        return new HubMemberPrivacy(on && hub.enabled() ? (path, body) -> hub.write("PUT", path, body, HubMemberPrivacy::sent) : null);
+        if (!on || !hub.enabled()) return off();
+        ScheduledExecutorService lane = BotScheduler.lane("hub-member-privacy");
+        HubMemberPrivacy privacy = forHub(hub, lane);
+        lane.scheduleWithFixedDelay(privacy::flush, RETRY_SECONDS, RETRY_SECONDS, TimeUnit.SECONDS);
+        log.info("Member privacy changes are sent to the RuneClans hub.");
+        return privacy;
     }
 
-    HubMemberPrivacy(BiFunction<String, String, HubWriteQueue.Result> writer) {
-        this.writer = writer;
+    /** Sends through {@code hub}'s first-party key on {@code lane}. */
+    static HubMemberPrivacy forHub(RuneClansHubClient hub, Executor lane) {
+        return new HubMemberPrivacy((path, body) -> hub.call("PUT", path, body), lane);
     }
 
-    /** Sends nothing: the switch off (for tests). */
+    HubMemberPrivacy(Sender sender, Executor lane) {
+        this.sender = sender;
+        this.lane = lane;
+    }
+
+    /** With the switch on, sending through {@code sender} on {@code lane} (for tests elsewhere). */
+    public static HubMemberPrivacy sendingTo(Sender sender, Executor lane) {
+        return new HubMemberPrivacy(sender, lane);
+    }
+
+    /** Sends nothing: the switch off. */
     public static HubMemberPrivacy off() {
-        return new HubMemberPrivacy(null);
+        return new HubMemberPrivacy(null, Runnable::run);
     }
 
     static boolean on(String raw) {
@@ -51,12 +86,12 @@ public class HubMemberPrivacy {
     }
 
     public boolean on() {
-        return writer != null;
+        return sender != null;
     }
 
     /**
      * A member saved their own toggles on a server (so they chose them): all three are sent, as the bot now has them, and the hub marks the
-     * member chosen. Nothing is sent for a save that touched no privacy toggle while the member hadn't chosen.
+     * member chosen.
      */
     public void memberSaved(long guildId, long userId, boolean hideFromLeaderboards, boolean hideAdventureLog, boolean hideDiscordLink) {
         send(memberPath(guildId, userId), toggles(hideFromLeaderboards, hideAdventureLog, hideDiscordLink));
@@ -80,19 +115,52 @@ public class HubMemberPrivacy {
                 .toString();
     }
 
+    /** How many hub rows wait to be sent. */
+    public synchronized int held() {
+        return held.size();
+    }
+
     private void send(String path, String body) {
-        if (writer == null) return;
+        if (sender == null) return;
+        synchronized (this) {
+            if (!held.containsKey(path) && held.size() >= MAX_HELD) {
+                log.warn("Too many member privacy changes wait for the hub ({}): one more was dropped.", MAX_HELD);
+                return;
+            }
+            held.remove(path); // the newest goes to the back, behind the ones held longer
+            held.put(path, body);
+        }
         try {
-            sent(writer.apply(path, body));
+            lane.execute(this::flush);
         } catch (RuntimeException e) {
-            // the bot's own save already happened; the hub copy is caught up by the next change or the move tool
-            log.warn("A member privacy change couldn't be sent to the hub: {}", e.getClass().getSimpleName());
+            log.warn("Member privacy changes couldn't be queued for the hub: {}", e.getClass().getSimpleName()); // tried again on the next round
         }
     }
 
-    /** How a write ended; only a refusal is worth a line (never the ids in it). */
-    private static void sent(HubWriteQueue.Result r) {
-        if (r != null && r.outcome() == HubWriteQueue.Outcome.REFUSED)
-            log.warn("The hub refused a member privacy change ({}).", r.answer() == null ? "no answer" : r.answer().status());
+    /**
+     * Sends every held row's newest body; keeps what the hub couldn't take now. Runs on the lane, one round at a time; the held rows are only
+     * locked to copy and to drop, never while the hub is asked, so a save never waits on the hub.
+     */
+    void flush() {
+        if (sender == null) return;
+        synchronized (flushing) {
+            Map<String, String> round;
+            synchronized (this) {
+                round = new LinkedHashMap<>(held);
+            }
+            for (Map.Entry<String, String> e : round.entrySet()) {
+                RuneClansHubClient.Answer a;
+                try {
+                    a = sender.put(e.getKey(), e.getValue());
+                } catch (RuntimeException ex) {
+                    a = null;
+                }
+                if (a == null || a.status() == 429 || a.status() >= 500) continue; // kept for the next round
+                synchronized (this) {
+                    held.remove(e.getKey(), e.getValue()); // a newer body saved meanwhile stays, and goes next round
+                }
+                if (!a.ok()) log.warn("The hub refused a member privacy change ({}).", a.status());
+            }
+        }
     }
 }

@@ -82,9 +82,9 @@ public class SiteMembersAdmin {
             PrivacyDefaults next = new PrivacyDefaults(flag(c, b, "hideFromLeaderboards", current.hideFromLeaderboards()),
                     flag(c, b, "hideAdventureLog", current.hideAdventureLog()), flag(c, b, "hideDiscordLink", current.hideDiscordLink()));
             profiles.savePrivacyDefaults(c.guildId(), next, c.userId());
-            hubPrivacy.defaultsSaved(c.guildId(), next); // the hub's copy (T-750)
             // the defaults change who shows in many cached answers, the clan site's included
             cache.clear();
+            hubPrivacy.defaultsSaved(c.guildId(), next); // the hub's copy (T-750), sent on its own lane
         }
         return privacyJson(profiles.privacyDefaults(c.guildId()));
     }

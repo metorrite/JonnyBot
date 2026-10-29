@@ -89,6 +89,7 @@ public final class LaneOwners {
             Map.entry("phishing-list", Owner.EVERY),
             Map.entry("debouncer", Owner.EVERY),
             Map.entry("site-invalidator", Owner.EVERY),
+            Map.entry("hub-member-privacy", Owner.EVERY), // the member privacy changes this process saved, on to the hub (T-750)
             Map.entry("cache-bus-send", Owner.EVERY),
             Map.entry("cache-bus-listen", Owner.EVERY),
             Map.entry("api-leader", Owner.EVERY),

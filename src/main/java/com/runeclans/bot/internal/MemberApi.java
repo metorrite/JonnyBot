@@ -345,10 +345,10 @@ public class MemberApi {
                 body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents()), body.getBoolean("hideDiscordLink", current.hideDiscordLink()),
                 chose, body.getBoolean("hideRecap", current.hideRecap()));
         repository.saveProfile(saved);
-        // the hub's copy (T-750): only a save that names a privacy toggle changes what the hub holds
+        cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists) — cleared after the save so nothing re-caches the old answer
+        // the hub's copy (T-750), sent on its own lane: only a save that names a privacy toggle changes what the hub holds
         if (PRIVACY_KEYS.stream().anyMatch(body::hasKey))
             hubPrivacy.memberSaved(guild.getIdLong(), userId, saved.hideFromLeaderboards(), saved.hideAdventureLog(), saved.hideDiscordLink());
-        cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists) — cleared after the save so nothing re-caches the old answer
         return getSettings(guild, userId);
     }
 

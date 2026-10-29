@@ -1,56 +1,129 @@
 package com.runeclans.bot.member;
 
 import com.runeclans.bot.member.MemberProfileRepository.PrivacyDefaults;
-import com.runeclans.bot.runeclans.HubWriteQueue;
+import com.runeclans.bot.runeclans.RuneClansHubClient;
+import com.runeclans.bot.runeclans.RuneClansHubClient.Answer;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-/** T-750: the bot's member privacy saves, sent on to the hub with the switch on; nothing with it off; a failing send never breaks the save. */
+/**
+ * T-750: the bot's member privacy saves, sent on to the hub with the switch on and never with it off; each toggle in its own field; a save
+ * held while the hub is down never lands after a newer one; a refused one is dropped.
+ */
 class HubMemberPrivacyTest {
     private static final long GUILD = Long.parseLong("1".repeat(18)), USER = Long.parseLong("2".repeat(18));
+    private static final Answer OK = new Answer(200, DataObject.empty()), DOWN = new Answer(503, null), BAD = new Answer(400, DataObject.empty());
+
+    private record Sent(String path, DataObject body) {}
 
     @Test
-    void savesGoToTheHubOnlyWithTheSwitchOn() {
-        List<String[]> sent = new ArrayList<>();
-        HubMemberPrivacy on = new HubMemberPrivacy((path, body) -> {
-            sent.add(new String[]{path, body});
-            return new HubWriteQueue.Result(HubWriteQueue.Outcome.QUEUED, null);
-        });
+    void theFactoryGateSendsAPutOnlyWithTheSwitchOn() {
+        RuneClansHubClient hub = mock(RuneClansHubClient.class);
+        when(hub.enabled()).thenReturn(true);
+        when(hub.call("PUT", HubMemberPrivacy.memberPath(GUILD, USER), HubMemberPrivacy.toggles(true, false, false))).thenReturn(OK);
+        HubMemberPrivacy.off().memberSaved(GUILD, USER, true, false, false);
+        verify(hub, never()).call(anyString(), anyString(), anyString());
+
+        HubMemberPrivacy on = HubMemberPrivacy.forHub(hub, Runnable::run);
         assertTrue(on.on());
-        on.memberSaved(GUILD, USER, true, false, true);
-        on.defaultsSaved(GUILD, new PrivacyDefaults(false, true, false));
-        assertEquals(2, sent.size());
-        assertEquals("/v1/guilds/" + GUILD + "/member-privacy/members/" + USER, sent.get(0)[0]);
-        DataObject member = DataObject.fromJson(sent.get(0)[1]);
-        assertTrue(member.getBoolean("hideFromLeaderboards"));
-        assertFalse(member.getBoolean("hideAdventureLog"));
-        assertTrue(member.getBoolean("hideDiscordLink"));
-        assertFalse(member.hasKey("chosen"), "the hub marks a member who names a toggle as chosen");
-        assertEquals("/v1/guilds/" + GUILD + "/member-privacy/defaults", sent.get(1)[0]);
-        assertTrue(DataObject.fromJson(sent.get(1)[1]).getBoolean("hideAdventureLog"));
+        on.memberSaved(GUILD, USER, true, false, false);
+        verify(hub).call("PUT", "/v1/guilds/" + GUILD + "/member-privacy/members/" + USER, HubMemberPrivacy.toggles(true, false, false));
+        assertEquals(0, on.held());
 
-        HubMemberPrivacy off = HubMemberPrivacy.off();
-        assertFalse(off.on());
-        off.memberSaved(GUILD, USER, true, true, true); // nothing to send to, nothing thrown
+        // the bot's own factory: off unless the setting is on AND the hub client is on
+        com.runeclans.bot.config.BotConfig config = mock(com.runeclans.bot.config.BotConfig.class);
+        when(config.getRuneClansSetting(HubMemberPrivacy.SETTING_ENV)).thenReturn("off");
+        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub).on());
+        when(config.getRuneClansSetting(HubMemberPrivacy.SETTING_ENV)).thenReturn("on");
+        when(hub.enabled()).thenReturn(false);
+        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub).on(), "the hub client off");
+        when(hub.enabled()).thenReturn(true);
+        assertTrue(HubMemberPrivacy.hubMemberPrivacy(config, hub).on());
 
-        HubMemberPrivacy failing = new HubMemberPrivacy((path, body) -> {
-            throw new IllegalStateException("hub down");
-        });
-        failing.defaultsSaved(GUILD, PrivacyDefaults.NONE); // logged, not thrown: the bot's own save already happened
+        assertFalse(HubMemberPrivacy.on(null));
+        assertFalse(HubMemberPrivacy.on("off"));
+        assertTrue(HubMemberPrivacy.on(" TRUE "));
+        assertTrue(HubMemberPrivacy.on("on"));
     }
 
     @Test
-    void theSwitchReadsOnOrTrue() {
-        assertTrue(HubMemberPrivacy.on("on"));
-        assertTrue(HubMemberPrivacy.on(" TRUE "));
-        assertFalse(HubMemberPrivacy.on(null));
-        assertFalse(HubMemberPrivacy.on("off"));
+    void eachToggleGoesInItsOwnField() {
+        List<Sent> sent = new ArrayList<>();
+        HubMemberPrivacy on = HubMemberPrivacy.sendingTo((path, body) -> {
+            sent.add(new Sent(path, DataObject.fromJson(body)));
+            return OK;
+        }, Runnable::run);
+        on.memberSaved(GUILD, USER, true, false, false);
+        on.memberSaved(GUILD, USER, false, true, false);
+        on.memberSaved(GUILD, USER, false, false, true);
+        on.defaultsSaved(GUILD, new PrivacyDefaults(true, false, false));
+        on.defaultsSaved(GUILD, new PrivacyDefaults(false, true, false));
+        on.defaultsSaved(GUILD, new PrivacyDefaults(false, false, true));
+        assertEquals(6, sent.size());
+        String[] keys = {"hideFromLeaderboards", "hideAdventureLog", "hideDiscordLink"};
+        for (int i = 0; i < 6; i++) {
+            assertEquals(i < 3 ? "/v1/guilds/" + GUILD + "/member-privacy/members/" + USER : "/v1/guilds/" + GUILD + "/member-privacy/defaults", sent.get(i).path());
+            for (int k = 0; k < 3; k++) assertEquals(k == i % 3, sent.get(i).body().getBoolean(keys[k]), "save " + i + ", " + keys[k]);
+            assertFalse(sent.get(i).body().hasKey("chosen"), "the hub marks a member who names a toggle as chosen");
+        }
+    }
+
+    @Test
+    void aHeldSaveNeverLandsAfterANewerOne() {
+        List<Sent> sent = new ArrayList<>();
+        AtomicInteger down = new AtomicInteger(1);
+        HubMemberPrivacy on = HubMemberPrivacy.sendingTo((path, body) -> {
+            if (down.get() > 0) return DOWN;
+            sent.add(new Sent(path, DataObject.fromJson(body)));
+            return OK;
+        }, Runnable::run);
+        on.memberSaved(GUILD, USER, false, false, false); // "show", held: the hub is down
+        assertEquals(1, on.held());
+        on.memberSaved(GUILD, USER, true, false, false); // "hide" replaces it
+        assertEquals(1, on.held(), "one row per hub path");
+        down.set(0);
+        on.flush();
+        assertEquals(1, sent.size(), "only the newest body is sent");
+        assertTrue(sent.get(0).body().getBoolean("hideFromLeaderboards"));
+        assertEquals(0, on.held());
+
+        HubMemberPrivacy unreachable = HubMemberPrivacy.sendingTo((path, body) -> null, Runnable::run);
+        unreachable.defaultsSaved(GUILD, PrivacyDefaults.NONE);
+        assertEquals(1, unreachable.held(), "no answer: tried again next round");
+        HubMemberPrivacy throwing = HubMemberPrivacy.sendingTo((path, body) -> {
+            throw new IllegalStateException("hub down");
+        }, Runnable::run);
+        throwing.defaultsSaved(GUILD, PrivacyDefaults.NONE); // kept, not thrown: the bot's own save already happened
+        assertEquals(1, throwing.held());
+        HubMemberPrivacy refusing = HubMemberPrivacy.sendingTo((path, body) -> BAD, Runnable::run);
+        refusing.defaultsSaved(GUILD, PrivacyDefaults.NONE);
+        assertEquals(0, refusing.held(), "a refusal is dropped, not retried for ever");
+    }
+
+    @Test
+    void sendsWaitForTheLaneNotTheCaller() {
+        List<Runnable> lane = new ArrayList<>();
+        AtomicInteger calls = new AtomicInteger();
+        HubMemberPrivacy on = HubMemberPrivacy.sendingTo((path, body) -> {
+            calls.incrementAndGet();
+            return OK;
+        }, lane::add);
+        on.memberSaved(GUILD, USER, true, true, true);
+        assertEquals(0, calls.get(), "the website's request never waits on the hub");
+        lane.forEach(Runnable::run);
+        assertEquals(1, calls.get());
     }
 }
