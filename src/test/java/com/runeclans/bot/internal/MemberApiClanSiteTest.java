@@ -56,6 +56,7 @@ class MemberApiClanSiteTest {
     private com.runeclans.bot.discord.jobs.DiscordOutbox outbox;
     private Guild guild;
     private Member member;
+    private SkillWeekMemberApi skillWeek;
 
     @BeforeEach
     void setUp() {
@@ -64,8 +65,9 @@ class MemberApiClanSiteTest {
         events = mock(MemberEventsApi.class);
         community = mock(CommunitySettings.class);
         outbox = mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class);
+        skillWeek = mock(SkillWeekMemberApi.class);
         api = new MemberApi(profiles, links, mock(PollService.class), mock(SignupService.class), mock(MemberAccess.class), mock(Debouncer.class), new SiteCache(), community,
-                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox, mock(SkillWeekMemberApi.class));
+                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox, skillWeek);
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(CLAN_GUILD);
@@ -121,6 +123,21 @@ class MemberApiClanSiteTest {
             assertEquals(MemberApi.NOT_IN_SERVER, r.body().getString("error"));
         }
         verifyNoInteractions(profiles, links, events);
+    }
+
+    @Test
+    void skillOfTheWeeksAutoEnrolChoiceIsReadAndSavedForThatServer() throws Exception {
+        when(skillWeek.auto(guild, USER)).thenReturn(DataObject.empty().put("autoEnrol", true).put("optedOut", false));
+        when(skillWeek.setAuto(any(), anyLong(), any())).thenReturn(DataObject.empty().put("autoEnrol", true).put("optedOut", true));
+
+        Reply read = call("GET", "skill-week/auto", "userId=" + USER, null, true);
+        assertEquals(200, read.status());
+        assertEquals(false, read.body().getBoolean("optedOut"));
+
+        Reply saved = call("POST", "skill-week/auto", null, "{\"userId\":\"" + USER + "\",\"optedOut\":true}", true);
+        assertEquals(200, saved.status());
+        assertEquals(true, saved.body().getBoolean("optedOut"));
+        verify(skillWeek).setAuto(eq(guild), eq(USER), any());
     }
 
     @Test
