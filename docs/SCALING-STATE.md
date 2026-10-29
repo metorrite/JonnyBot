@@ -242,6 +242,7 @@ has more than one replica).
 | `command-usage` | `commandusage/CommandUsageListener` | every process (flushes add up) |
 | `phishing-list` | `automod/PhishingList` | every process (each needs the list) |
 | `debouncer`, `site-invalidator` | `internal/Debouncer`, `internal/SiteInvalidator` | every process (local batching) |
+| `hub-member-privacy` | `member/HubMemberPrivacy` | every process (sends the member privacy changes it saved to the hub, T-750) |
 | `job-heartbeat` | `jobs/JobRepository` | every process (keeps that process's own running dashboard jobs alive, T-698) |
 | `event-export-expiry` | `events/EventExportRepository` | api (database only: deletes expired wrap-up exports, T-698) |
 
