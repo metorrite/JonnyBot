@@ -26,6 +26,15 @@ class BotRoleTest {
     }
 
     @Test
+    void aMistypedRoleStopsTheProcessOnceASplitIsPossible() {
+        assertEquals(BotRole.ALL, BotRole.parse("gatway", false), "one process: all is still the bot as before");
+        IllegalStateException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> BotRole.parse(" gatway ", true));
+        assertTrue(refused.getMessage().contains("'gatway'"), refused.getMessage());
+        assertEquals(BotRole.ALL, BotRole.parse(" ", true), "unset is still all");
+        assertEquals(BotRole.GATEWAY, BotRole.parse("gateway", true));
+    }
+
+    @Test
     void eachRoleRunsItsPart() {
         assertTrue(BotRole.ALL.gateway());
         assertTrue(BotRole.ALL.internalApi());

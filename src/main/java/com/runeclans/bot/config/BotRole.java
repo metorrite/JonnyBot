@@ -77,11 +77,15 @@ public enum BotRole {
      * possible; once it is, a typo stops the process, since falling back to all would run everything twice next to the real processes.
      */
     public static BotRole parse(String raw) {
+        return parse(raw, splitReady());
+    }
+
+    static BotRole parse(String raw, boolean splitReady) {
         if (raw == null || raw.isBlank()) return ALL;
         try {
             return valueOf(raw.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            if (splitReady()) throw new IllegalStateException("BOT_ROLE='" + raw.trim() + "' isn't a role: use all, gateway or api");
+            if (splitReady) throw new IllegalStateException("BOT_ROLE='" + raw.trim() + "' isn't a role: use all, gateway or api");
             LoggerFactory.getLogger(BotRole.class).warn("BOT_ROLE='{}' isn't a role (all, gateway or api); using all", raw.trim());
             return ALL;
         }
