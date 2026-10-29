@@ -72,15 +72,22 @@ public class RequestCards extends ListenerAdapter implements BotListener, HubFee
      * "Send the cards again" puts such cards right.
      */
     void enqueueWaiting() {
+        int failed = drain(waiting, outbox);
+        if (failed > 0) log.warn("{} request card job(s) couldn't be queued yet; trying again shortly", failed);
+    }
+
+    /** Hands each waiting job to the outbox, keeping the ones it couldn't take; one failing never holds up the rest. Returns how many stay. */
+    static int drain(Map<String, Job> waiting, DiscordOutbox outbox) {
+        int failed = 0;
         for (Job job : List.copyOf(waiting.values())) {
             try {
                 outbox.enqueue(job.kind(), job.guildId(), 0L, job.dedupe(), job.payload());
                 waiting.remove(job.dedupe(), job);
             } catch (RuntimeException e) {
-                log.warn("A request card couldn't be queued yet ({}); trying again shortly", e.getClass().getSimpleName());
-                return;
+                failed++;
             }
         }
+        return failed;
     }
 
     /** An outbox job for one hub feed entry. */
@@ -117,11 +124,13 @@ public class RequestCards extends ListenerAdapter implements BotListener, HubFee
         Member member = event.getMember();
         if (member == null || event.getGuild() == null) return;
         String guildId = event.getGuild().getId();
-        String discordId = member.getId();
-        boolean administrator = member.hasPermission(Permission.ADMINISTRATOR);
-        boolean owner = member.isOwner();
-        event.deferEdit().queue(hook -> lane.execute(() -> show(event, hook, RequestCardLogic.press(press, guildId, discordId, administrator, owner, hub::call))),
+        event.deferEdit().queue(hook -> lane.execute(() -> show(event, hook, press(press, guildId, member, hub::call))),
                 err -> log.info("A request card press couldn't be acknowledged ({})", err.getClass().getSimpleName()));
+    }
+
+    /** A press by this member, sent to the hub with what Discord says about them: their id, and whether they are Administrator or the owner. */
+    static RequestCardLogic.Outcome press(RequestCardLogic.Press press, String guildId, Member member, RequestCardLogic.HubCall hub) {
+        return RequestCardLogic.press(press, guildId, member.getId(), member.hasPermission(Permission.ADMINISTRATOR), member.isOwner(), hub);
     }
 
     /** Shows the hub's answer: the card as it is now, and a private note to the presser when there is one. */

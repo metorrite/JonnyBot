@@ -133,6 +133,33 @@ class RuneClansHubClientTest {
     }
 
     @Test
+    void theFeedIsReadOftenEnoughForARequestCardWithinFiveSeconds() {
+        // T-734: a site-side change reaches its Discord card within 5 s (this poll plus the outbox's 1 s drain)
+        assertTrue(RuneClansFeedPoller.POLL_EVERY_SECONDS <= 3);
+    }
+
+    @Test
+    void theCursorIsReadOnceAndSavedOnlyWhenTheFeedMoved() {
+        AtomicReference<String> next = new AtomicReference<>("c1");
+        RuneClansHubClient hub = new RuneClansHubClient(on(), (method, path, body) ->
+                new RuneClansHubClient.Answer(200, DataObject.empty().put("data", DataArray.empty()).put("nextCursor", next.get()).put("more", false)));
+        List<String> saves = new ArrayList<>();
+        int[] loads = {0};
+        RuneClansFeedPoller.Relay relay = new RuneClansFeedPoller.Relay(hub, () -> {
+            loads[0]++;
+            return Optional.of("c0");
+        }, saves::add, List.of(), g -> { });
+        relay.poll();
+        relay.poll();
+        relay.poll();
+        assertEquals(1, loads[0], "loaded once, then kept");
+        assertEquals(List.of("c1"), saves, "an unchanged cursor is not written again");
+        next.set("c2");
+        relay.poll();
+        assertEquals(List.of("c1", "c2"), saves);
+    }
+
+    @Test
     void hubEventsConvertLikeTheBotsOwn() {
         PluginPayload.Event e = RuneClansFeedPoller.Relay.toEvent(event("9", "a1_x", "KILL").getObject("data"));
         assertNotNull(e);

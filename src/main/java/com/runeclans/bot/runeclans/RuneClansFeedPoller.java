@@ -115,6 +115,9 @@ public class RuneClansFeedPoller {
         private final Consumer<Map.Entry<String, Long>> granted;
         private final List<HubFeedListener> listeners;
         private final ConcurrentHashMap<String, CachedId> ids = new ConcurrentHashMap<>();
+        /** The cursor as last loaded or saved: read from the database once, written only when the feed moved (it is polled every few seconds). */
+        private String known;
+        private boolean loaded;
 
         private record CachedId(Optional<Long> id, Instant until) {}
 
@@ -135,9 +138,12 @@ public class RuneClansFeedPoller {
 
         /** Reads the feed until it has no more. Returns how many events were passed on. */
         int poll() {
-            Optional<String> stored = loadCursor.get();
-            boolean firstRun = stored.isEmpty();
-            String cursor = stored.orElse(null);
+            if (!loaded) {
+                known = loadCursor.get().orElse(null);
+                loaded = true;
+            }
+            boolean firstRun = known == null;
+            String cursor = known;
             int passed = 0;
             for (int pages = 0; pages < 50; pages++) {
                 RuneClansHubClient.Answer a = hub.feed(cursor, PAGE);
@@ -145,7 +151,10 @@ public class RuneClansFeedPoller {
                 DataArray data = a.json().getArray("data");
                 if (!firstRun) passed += handle(data);
                 cursor = a.json().getString("nextCursor", cursor);
-                if (cursor != null) saveCursor.accept(cursor);
+                if (cursor != null && !cursor.equals(known)) {
+                    saveCursor.accept(cursor);
+                    known = cursor;
+                }
                 if (!a.json().getBoolean("more", false)) break;
             }
             if (firstRun) log.info("RuneClans feed: started from its current end (nothing replayed)");

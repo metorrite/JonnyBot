@@ -114,4 +114,39 @@ class RequestCardsTest {
         cards.enqueueWaiting();
         assertEquals(calls, org.mockito.Mockito.mockingDetails(outbox).getInvocations().size(), "once queued it is not queued again");
     }
+
+    @Test
+    void oneJobTheOutboxRefusesHoldsUpNoOther() {
+        DiscordOutbox outbox = org.mockito.Mockito.mock(DiscordOutbox.class);
+        org.mockito.Mockito.when(outbox.enqueue(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq("bad"), org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new IllegalStateException("refused"));
+        java.util.Map<String, RequestCards.Job> waiting = new java.util.LinkedHashMap<>();
+        waiting.put("bad", new RequestCards.Job(RequestCardJobs.CARD, 1L, "bad", DataObject.empty()));
+        waiting.put("good", new RequestCards.Job(RequestCardJobs.CARD, 1L, "good", DataObject.empty()));
+        assertEquals(1, RequestCards.drain(waiting, outbox));
+        assertEquals(java.util.Set.of("bad"), waiting.keySet(), "the refused one waits; the one after it was queued");
+        org.mockito.Mockito.verify(outbox).enqueue(RequestCardJobs.CARD, 1L, 0L, "good", DataObject.empty());
+    }
+
+    @Test
+    void aPressSaysWhatDiscordSaysAboutThePresser() {
+        RequestCardLogic.Press accept = RequestCardLogic.parse(RequestCardLogic.buttonId("accepted", REQUEST, 2));
+        for (boolean[] flags : new boolean[][] {{false, false}, {true, false}, {false, true}}) {
+            net.dv8tion.jda.api.entities.Member member = org.mockito.Mockito.mock(net.dv8tion.jda.api.entities.Member.class);
+            org.mockito.Mockito.when(member.getId()).thenReturn(MEMBER);
+            org.mockito.Mockito.when(member.hasPermission(net.dv8tion.jda.api.Permission.ADMINISTRATOR)).thenReturn(flags[0]);
+            org.mockito.Mockito.when(member.isOwner()).thenReturn(flags[1]);
+            java.util.List<DataObject> sent = new java.util.ArrayList<>();
+            RequestCards.press(accept, GUILD, member, (m, p, b, h) -> {
+                sent.add(DataObject.fromJson(b));
+                return new RuneClansHubClient.Answer(200, DataObject.empty());
+            });
+            DataObject by = sent.get(0).getObject("by");
+            assertEquals(MEMBER, by.getString("discordId"));
+            assertEquals(flags[0], by.getBoolean("administrator"), "administrator");
+            assertEquals(flags[1], by.getBoolean("owner"), "owner");
+            assertEquals(GUILD, sent.get(0).getString("guildId"));
+        }
+    }
 }
