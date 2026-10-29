@@ -91,7 +91,7 @@ class DirectoryPlayerDatabaseTest {
         CommunitySettings community = new CommunitySettings(db, com.runeclans.bot.testsupport.SiteMappings.off(db));
         siteApi = new SiteApi(stats, links, points, settings, digest, memberProfiles, mock(SiteNewsService.class), mock(SignupService.class),
                 new SiteCache(), new RecapService(stats, memberProfiles, digest, settings), community,
-                new BossStatsService(stats, memberProfiles, new WikiCatalog()), mock(SiteDiscordService.class));
+                new BossStatsService(stats, memberProfiles, new WikiCatalog()), mock(SiteDiscordService.class), mock(com.runeclans.bot.clansite.ClanSitePluginFeed.class));
     }
 
     @BeforeEach

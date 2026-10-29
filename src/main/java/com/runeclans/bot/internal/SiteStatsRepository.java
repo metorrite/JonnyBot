@@ -87,6 +87,9 @@ public class SiteStatsRepository {
 
     public record PointsEarned(String rsn, long points) {}
 
+    /** Clan points a member was awarded for one day (T-710). */
+    public record PointsDay(String rsn, LocalDate day, long points) {}
+
     public record SignupRow(long id, String title, String notification, Integer max, String status, OffsetDateTime createdAt, List<SignupEntry> entries) {}
 
     public record SignupEntry(long userId, String rsn, int position) {}
@@ -296,6 +299,15 @@ public class SiteStatsRepository {
                   AND a.awarded_for_date >= (?::timestamptz AT TIME ZONE 'UTC')::date AND a.awarded_for_date < (?::timestamptz AT TIME ZONE 'UTC')::date
                 GROUP BY a.rsn
                 """, rs -> new PointsEarned(rs.getString("rsn"), rs.getLong("points")), guildId, rsn, rsn, from, to);
+    }
+
+    /** Clan points awarded per member per day from {@code from} (a UTC date) on, for the leaderboard race's month of clan points (T-710). */
+    public List<PointsDay> pointsByDay(long guildId, LocalDate from) {
+        return query("points per day", """
+                SELECT a.rsn, a.awarded_for_date, SUM(a.points) AS points FROM younglings.clan_points_award a
+                WHERE a.guild_id = ? AND a.awarded_for_date >= ?
+                GROUP BY a.rsn, a.awarded_for_date
+                """, rs -> new PointsDay(rs.getString("rsn"), rs.getObject("awarded_for_date", LocalDate.class), rs.getLong("points")), guildId, from);
     }
 
     /** A member's total level at the start and end of the window ({@code null} if they have no snapshot there). */
