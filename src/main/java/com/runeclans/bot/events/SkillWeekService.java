@@ -334,6 +334,8 @@ public class SkillWeekService {
         for (EventRepository.Participant p : repository.participants(eventId)) playing.add(p.userId());
         java.time.LocalDate today = now.atZone(java.time.ZoneOffset.UTC).toLocalDate();
         java.time.LocalDate first = start.atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        String thisWeek = guildId + ":" + start + ":";
+        joinFailures.keySet().removeIf(k -> k.startsWith(guildId + ":") && !k.startsWith(thisWeek)); // last week's tries
         int added = 0;
         int slow = 0;
         for (java.time.LocalDate day : today.isAfter(first) ? List.of(today.minusDays(1), today) : List.of(today)) {
@@ -359,7 +361,7 @@ public class SkillWeekService {
                     }
                 }
                 already.add(user);
-                String tries = guildId + ":" + start + ":" + user;
+                String tries = thisWeek + user;
                 try {
                     service.join(guildId, eventId, guildId, user, null, true, null);
                     playing.add(user);

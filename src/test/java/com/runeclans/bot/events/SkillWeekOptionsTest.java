@@ -302,6 +302,25 @@ class SkillWeekOptionsTest {
         }
     }
 
+    @Test
+    void aFewSlowAnswersEndThePassForTheNextOne() {
+        autoEnrolWeek();
+        when(weeks.optedOut(GUILD)).thenReturn(new java.util.HashSet<>());
+        long dave = Long.parseLong("4".repeat(18));
+        when(hub.xpGainers(eq(GUILD), any())).thenReturn(gainers(String.valueOf(ALICE), String.valueOf(BOB), String.valueOf(CAROL), String.valueOf(dave)));
+        net.dv8tion.jda.api.JDA jda = Mockito.mock(net.dv8tion.jda.api.JDA.class);
+        net.dv8tion.jda.api.entities.Guild guild = Mockito.mock(net.dv8tion.jda.api.entities.Guild.class);
+        service.withJda(jda);
+        try (var shards = Mockito.mockStatic(com.runeclans.bot.discord.Shards.class);
+             var lookups = Mockito.mockStatic(com.runeclans.bot.discord.DiscordLookups.class)) {
+            shards.when(() -> com.runeclans.bot.discord.Shards.guild(jda, GUILD)).thenReturn(guild);
+            lookups.when(() -> com.runeclans.bot.discord.DiscordLookups.member(eq(guild), anyLong(), any())).thenReturn(lookup(com.runeclans.bot.discord.DiscordLookups.Outcome.SLOW));
+            assertEquals(0, service.autoEnrol(GUILD, NOW));
+            lookups.verify(() -> com.runeclans.bot.discord.DiscordLookups.member(eq(guild), anyLong(), any()), Mockito.times(SkillWeekService.AUTO_SLOW_LIMIT));
+            lookups.verify(() -> com.runeclans.bot.discord.DiscordLookups.member(eq(guild), eq(dave), any()), Mockito.never());
+        }
+    }
+
     private static com.runeclans.bot.discord.DiscordLookups.MemberLookup lookup(com.runeclans.bot.discord.DiscordLookups.Outcome outcome) {
         return new com.runeclans.bot.discord.DiscordLookups.MemberLookup(outcome,
                 outcome == com.runeclans.bot.discord.DiscordLookups.Outcome.FOUND ? Mockito.mock(net.dv8tion.jda.api.entities.Member.class) : null);
