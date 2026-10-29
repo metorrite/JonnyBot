@@ -184,7 +184,8 @@ public class TrackingIconCatalog extends ListenerAdapter {
 
     private void sync(JDA jda) {
         boolean upload = EmojiUploads.mayUpload(jda);
-        Map<String, String> storedHashes = hashRepository.getAllHashes();
+        // only an uploader compares hashes (to replace a changed icon); the others just pick up what exists
+        Map<String, String> storedHashes = upload ? hashRepository.getAllHashes() : Map.of();
 
         jda.retrieveApplicationEmojis().queue(existing -> {
             Map<String, ApplicationEmoji> byName = existing.stream()
