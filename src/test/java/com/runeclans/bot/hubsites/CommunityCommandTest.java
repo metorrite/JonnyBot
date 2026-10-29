@@ -63,10 +63,27 @@ class CommunityCommandTest {
 
     @Test
     void leavingCallsDeleteWithTheCaller() {
-        Hub hub = new Hub(200, state("none"));
+        Hub hub = new Hub(200, state("none").put("left", true));
         CommunityCommand.Reply r = CommunityCommand.reply(sites(COMMUNITY), hub, SITES, GUILD, USER, false, KEYS);
         assertEquals("community.left[Younglings]", r.lines()[0]);
         assertEquals(List.of("DELETE /v1/communities/" + COMMUNITY + "/members/" + USER), hub.calls);
+    }
+
+    @Test
+    void leavingWhenNotAMemberSaysSo() {
+        CommunityCommand.Reply never = CommunityCommand.reply(sites(COMMUNITY), new Hub(200, state("none").put("left", false)), SITES, GUILD, USER, false, KEYS);
+        assertEquals("community.not_member[Younglings]", never.lines()[0]);
+        // an older hub without a name or "left": never "You left **."
+        CommunityCommand.Reply bare = CommunityCommand.reply(sites(COMMUNITY), new Hub(200, DataObject.empty().put("state", "none")), SITES, GUILD, USER, false, KEYS);
+        assertEquals("community.not_member[community.this_community[]]", bare.lines()[0]);
+    }
+
+    @Test
+    void anInvitedOrUnexpectedJoinAnswerIsWorded() {
+        CommunityCommand.Reply invited = CommunityCommand.reply(sites(COMMUNITY), new Hub(200, state("invited")), SITES, GUILD, USER, true, KEYS);
+        assertEquals("community.invited[Younglings] community.join_form[https://younglings.runeclans.example/join]", invited.lines()[0]);
+        CommunityCommand.Reply odd = CommunityCommand.reply(sites(COMMUNITY), new Hub(200, state("removed")), SITES, GUILD, USER, true, KEYS);
+        assertEquals("community.try_again[]", odd.lines()[0]);
     }
 
     @Test

@@ -87,9 +87,25 @@ public class CommunityCommand {
             DataObject json = a.json();
             String name = json.getString("name", "");
             String state = json.optObject("me").map(me -> me.getString("state", "none")).orElse("none");
-            if (join && state.equals("member")) return new Reply(Containers.SUCCESS, text.apply("community.joined", new Object[]{name}));
-            if (join && state.equals("pending")) return new Reply(Containers.INFO, text.apply("community.request_waiting", new Object[]{name}));
-            if (!join) return new Reply(Containers.SUCCESS, text.apply("community.left", new Object[]{name}));
+            if (name.isBlank()) name = text.apply("community.this_community", new Object[0]);
+            if (!join) {
+                // left: whether they were a member until now (hub T-732); "you weren't a member" otherwise
+                boolean left = json.getBoolean("left", false);
+                return left ? new Reply(Containers.SUCCESS, text.apply("community.left", new Object[]{name}))
+                        : new Reply(Containers.INFO, text.apply("community.not_member", new Object[]{name}));
+            }
+            switch (state) {
+                case "member":
+                    return new Reply(Containers.SUCCESS, text.apply("community.joined", new Object[]{name}));
+                case "pending":
+                    return new Reply(Containers.INFO, text.apply("community.request_waiting", new Object[]{name}));
+                case "invited":
+                    // an invite is accepted by joining, so the hub answers "member"; just in case, point at the site's Join page
+                    return new Reply(Containers.INFO, joinPage == null ? text.apply("community.invited", new Object[]{name})
+                            : text.apply("community.invited", new Object[]{name}) + " " + text.apply("community.join_form", new Object[]{joinPage}));
+                default:
+                    return new Reply(Containers.WARNING, text.apply("community.try_again", new Object[0]));
+            }
         }
         String code = a.json() == null ? "" : a.json().getString("error", "");
         String message = a.json() == null ? "" : a.json().getString("message", "");
