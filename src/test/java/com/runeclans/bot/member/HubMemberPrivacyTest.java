@@ -126,4 +126,91 @@ class HubMemberPrivacyTest {
         lane.forEach(Runnable::run);
         assertEquals(1, calls.get());
     }
+
+    @Test
+    void aSaveDuringASendStaysHeldAndGoesNext() {
+        List<Sent> sent = new ArrayList<>();
+        List<Runnable> lane = new ArrayList<>();
+        HubMemberPrivacy[] on = new HubMemberPrivacy[1];
+        on[0] = HubMemberPrivacy.sendingTo((path, body) -> {
+            if (sent.isEmpty()) on[0].memberSaved(GUILD, USER, true, false, false); // "hide" saved while "show" is on its way
+            sent.add(new Sent(path, DataObject.fromJson(body)));
+            return OK;
+        }, lane::add);
+        on[0].memberSaved(GUILD, USER, false, false, false);
+        on[0].flush();
+        assertEquals(1, on[0].held(), "the newer save is not dropped with the one the hub took");
+        on[0].flush();
+        assertEquals(2, sent.size());
+        assertTrue(sent.get(1).body().getBoolean("hideFromLeaderboards"), "the newer save goes next");
+        assertEquals(0, on[0].held());
+    }
+
+    @Test
+    void eachRowSendsItsNewestBodyEvenWhenSavedMidRound() {
+        List<Sent> sent = new ArrayList<>();
+        AtomicInteger down = new AtomicInteger(1);
+        HubMemberPrivacy[] on = new HubMemberPrivacy[1];
+        on[0] = HubMemberPrivacy.sendingTo((path, body) -> {
+            if (down.get() > 0) return DOWN;
+            if (sent.isEmpty()) on[0].defaultsSaved(GUILD, new PrivacyDefaults(false, false, true)); // the second row changes mid-round
+            sent.add(new Sent(path, DataObject.fromJson(body)));
+            return OK;
+        }, new ArrayList<Runnable>()::add);
+        on[0].memberSaved(GUILD, USER, true, false, false);
+        on[0].defaultsSaved(GUILD, new PrivacyDefaults(true, false, false));
+        assertEquals(2, on[0].held());
+        down.set(0);
+        on[0].flush();
+        assertEquals(2, sent.size(), "the stale defaults are never sent");
+        assertEquals(HubMemberPrivacy.defaultsPath(GUILD), sent.get(1).path());
+        assertFalse(sent.get(1).body().getBoolean("hideFromLeaderboards"));
+        assertTrue(sent.get(1).body().getBoolean("hideDiscordLink"));
+        assertEquals(0, on[0].held());
+    }
+
+    @Test
+    void aBurstOfSavesQueuesOneRound() {
+        List<Runnable> lane = new ArrayList<>();
+        AtomicInteger calls = new AtomicInteger();
+        HubMemberPrivacy on = HubMemberPrivacy.sendingTo((path, body) -> {
+            calls.incrementAndGet();
+            return OK;
+        }, lane::add);
+        for (int i = 0; i < 5; i++) on.memberSaved(GUILD, USER + i, true, false, false);
+        assertEquals(1, lane.size(), "one round for the burst");
+        lane.remove(0).run();
+        assertEquals(5, calls.get(), "the round sends the whole burst");
+        on.memberSaved(GUILD, USER, false, false, false);
+        assertEquals(1, lane.size(), "a save after the round started queues the next one");
+
+        HubMemberPrivacy rejected = HubMemberPrivacy.sendingTo((path, body) -> OK, r -> {
+            throw new java.util.concurrent.RejectedExecutionException("stopping");
+        });
+        rejected.memberSaved(GUILD, USER, true, false, false);
+        assertEquals(1, rejected.held(), "kept for the timed round");
+        List<Runnable> later = new ArrayList<>();
+        // a lane that refused once doesn't leave the flag stuck: the next save still queues
+        HubMemberPrivacy flaky = HubMemberPrivacy.sendingTo((path, body) -> OK, new java.util.concurrent.Executor() {
+            boolean refused;
+            @Override public void execute(Runnable r) {
+                if (!refused) { refused = true; throw new java.util.concurrent.RejectedExecutionException("busy"); }
+                later.add(r);
+            }
+        });
+        flaky.memberSaved(GUILD, USER, true, false, false);
+        flaky.memberSaved(GUILD, USER, false, false, false);
+        assertEquals(1, later.size());
+    }
+
+    @Test
+    void pastTheCapANewRowIsDroppedButAHeldOneStillUpdates() {
+        HubMemberPrivacy on = HubMemberPrivacy.sendingTo((path, body) -> DOWN, new ArrayList<Runnable>()::add);
+        for (int i = 0; i < HubMemberPrivacy.MAX_HELD; i++) on.memberSaved(GUILD, i, true, false, false);
+        assertEquals(HubMemberPrivacy.MAX_HELD, on.held());
+        on.memberSaved(GUILD, HubMemberPrivacy.MAX_HELD, true, false, false);
+        assertEquals(HubMemberPrivacy.MAX_HELD, on.held(), "a new row past the cap is dropped");
+        on.memberSaved(GUILD, 7, false, false, true);
+        assertEquals(HubMemberPrivacy.MAX_HELD, on.held(), "a held row updates at the cap");
+    }
 }

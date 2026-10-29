@@ -97,6 +97,7 @@ Paths are under `src/main/java/com/runeclans/bot/`. "TTL" means the entry expire
 | Twitch "live now" snapshot | `twitch/TwitchService.lastLive`, `lastPoll` | display cache | Per process is fine; the post itself is claimed in Postgres (`repository.claim`). The lane is One owner (M11) |
 | Send-now guard | `tracking/TrackingConfigInteractionListener.sendNowInFlight` | double-click guard | Per shard set is fine |
 | Hub write retry queue | `runeclans/HubWriteQueue.held` | best-effort retry, documented as memory-only | Per process is fine (lost on restart by design) |
+| Hub member privacy sends (T-750) | `member/HubMemberPrivacy.held` | newest change per hub row, memory only, capped at 10,000 rows | Per process is fine (lost on restart by design: the member's next save or the hub's `MoveTool copy member-privacy` catches up). Each process sends only what it saved, so newest-wins holds within one process |
 | Hub site role reports | `hubsites/RoleReports.pending` | outgoing batch | Per shard set is fine (role changes come from the owning shard) |
 | Command usage counts | `commandusage/CommandUsageCounter` | counter flushed with `uses = uses + EXCLUDED.uses` | Per process is fine (flushes add up) |
 | Site invalidation batch | `internal/SiteInvalidator` (`pending`, `pendingGuilds`, static `instance`) | outgoing batch to the website | Per process is fine (each process announces its own writes) |
