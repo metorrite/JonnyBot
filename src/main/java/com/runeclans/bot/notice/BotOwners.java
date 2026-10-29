@@ -38,6 +38,14 @@ public class BotOwners {
         return owners(jda).contains(userId) || config.getOwnerIds().contains(userId);
     }
 
+    /**
+     * {@link #isOwner} from what is already known, never asking Discord: for hot paths inside a web request (the dashboard's {@code whoami},
+     * every dashboard call's owner override check). Anyone {@link #isOwner} found before, or listed in {@code OWNER_IDS}.
+     */
+    public boolean isKnownOwner(long userId) {
+        return owners.contains(userId) || config.getOwnerIds().contains(userId);
+    }
+
     /** Everyone known to own the bot right now (the application's owner or team, and {@code OWNER_IDS}), for showing the built-in admins. */
     public Set<Long> known(JDA jda) {
         Set<Long> all = new HashSet<>(owners(jda));

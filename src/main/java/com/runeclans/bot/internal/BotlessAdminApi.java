@@ -140,7 +140,9 @@ public class BotlessAdminApi {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
                 return;
             }
-            if (!method.equals("GET")) auditStore.audit(guildId, Long.toString(facts.userId()), null, method, route, 200);
+            // a RuneClan Admin acting on a site that isn't theirs is named as one in the site's history (T-445: the clan sees it)
+            if (!method.equals("GET")) auditStore.audit(guildId, Long.toString(facts.userId()),
+                    SiteRoles.onlyAsOverallAdmin(caller.facts(), siteRoles.settings(guildId)) ? "A RuneClan Admin" : null, method, route, 200);
             InternalApiServer.sendJson(exchange, 200, result);
         } catch (NeedsBot e) {
             InternalApiServer.sendJson(exchange, 409, DataObject.empty().put("error", e.getMessage()).put("needsBot", true).put("botless", true));

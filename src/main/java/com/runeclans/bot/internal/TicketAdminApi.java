@@ -14,7 +14,9 @@ import com.runeclans.bot.commands.ticket.TicketService;
 import com.runeclans.bot.discord.DiscordLookups;
 import com.runeclans.bot.i18n.Text;
 import com.runeclans.bot.internal.TicketAdminJson.BadRequest;
+import com.runeclans.bot.clansite.SiteRoles;
 import com.runeclans.bot.permission.DashboardAccess;
+import com.runeclans.bot.permission.OwnerOverride;
 import com.runeclans.bot.permission.DashboardAccess.Tier;
 import com.runeclans.bot.ticket.TicketModels.Field;
 import com.runeclans.bot.ticket.TicketModels.HelpSettings;
@@ -147,7 +149,19 @@ public class TicketAdminApi {
             String[] parts = route.isEmpty() ? new String[0] : route.split("/");
             String method = exchange.getRequestMethod().toUpperCase();
 
-            Member actor = actorOf(exchange, guild);
+            long askerId = actorIdOf(exchange);
+            OwnerOverride override = access.ownerOverride();
+            // the bot owner's "lift restrictions" mode (T-445): started and ended here, by the owner alone, after the website's acknowledgement
+            if (parts.length == 1 && parts[0].equals("owner-override")) {
+                InternalApiServer.sendJson(exchange, 200, OwnerOverrideRoute.handle(override, id -> overviewAdmin.isKnownOwner(id) || overviewAdmin.isOwner(guild, id), () -> body(exchange),
+                        auditStore::audit, () -> ownerName(guild, askerId), guild.getIdLong(), askerId, method));
+                return;
+            }
+            // decided once per request: the access check, the stand-in and the audit name all use this same answer
+            boolean overriding = askerId != 0 && override.active(guild.getIdLong(), askerId);
+            Member found = actorOf(exchange, guild);
+            // while it runs, the owner is this server's Admin even when they aren't a member of it: a stand-in with no roles or Discord rights
+            Member actor = OwnerOverrideRoute.actorFor(found, overriding, () -> OwnerStandIn.of(guild, askerId));
             Tier tier = actor == null ? Tier.NONE : access.tierOf(guild, actor);
             boolean coordinator = actor != null && tier == Tier.NONE && access.isEventCoordinator(guild, actor);
 
@@ -158,11 +172,13 @@ public class TicketAdminApi {
                 // An Event coordinator is not allowed in the dashboard as such (allowed stays false); the website lets them into the event manager only.
                 if (coordinator) who.put("coordinator", true).put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
                 if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
-                // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
-                // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
-                long askerId = actorIdOf(exchange);
                 // an overall RuneClans admin (N5) may open this server's site admin and editor, member or not
                 who.put("overallAdmin", askerId != 0 && overallAdmins.isOverallAdmin(guild.getJDA(), askerId));
+                // the bot owner may lift the restrictions for this server (T-445); say whether they did and until when
+                // from what is already known (no Discord call inside the web request; the overall admin check above has just filled it)
+                if (askerId != 0 && overviewAdmin.isKnownOwner(askerId)) who.put("ownerOverride", OwnerOverrideRoute.state(override, guild.getIdLong(), askerId));
+                // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
+                // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
                 boolean beta = tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId));
                 who.put("beta", beta);
                 // Per restricted area: the beta rule above, or a grant on the owner's access list for that area. Fails closed.
@@ -178,7 +194,7 @@ public class TicketAdminApi {
             }
             // the clan website's routes for people let in by the site itself, member or not (overall admins, site admins, editors; N5)
             if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))) {
-                SiteCaller site = siteAccess.caller(exchange, guild, actorIdOf(exchange), actor, method, parts);
+                SiteCaller site = siteAccess.caller(exchange, guild, askerId, actor, method, parts);
                 if (site != null) {
                     if (!method.equals("GET") && !adminWrites.tryAcquire(Long.toString(site.userId()))) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
                     DataObject answer = SiteAccessRoutes.route(site, method, parts, () -> method.equals("GET") ? AdminRouteExtension.queryOf(exchange.getRequestURI()) : body(exchange), clanSiteAdmin, sitePictures, imageAdmin, () -> AdminReads.cached(guild, "structure", () -> structure(guild)),
@@ -189,7 +205,7 @@ public class TicketAdminApi {
                     }
                     if (!method.equals("GET")) {
                         AdminReads.forget(guild);
-                        String name = actor != null ? actor.getEffectiveName() : site.facts().overallAdmin() ? "A RuneClan Admin" : "A Site Admin";
+                        String name = siteAuditName(actor != null ? actor.getEffectiveName() : null, site.facts(), siteRoles(site));
                         auditStore.audit(guild.getIdLong(), Long.toString(site.userId()), name, method, route, 200);
                     }
                     InternalApiServer.sendJson(exchange, 200, answer);
@@ -202,13 +218,16 @@ public class TicketAdminApi {
                 return;
             }
 
-            DataObject result = route(exchange, guild, actor, method, parts);
+            DataObject result = route(exchange, guild, actor, overriding, method, parts);
             if (result == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
                 return;
             }
             // Every change made from the dashboard is written to the audit log (never the request body, which may hold private text).
-            if (!method.equals("GET")) auditStore.audit(guild.getIdLong(), actor.getId(), actor.getEffectiveName(), method, route, 200);
+            if (!method.equals("GET")) {
+                // the clan sees the owner's changes in its own log, marked as made with restrictions lifted (T-445)
+                auditStore.audit(guild.getIdLong(), actor.getId(), OwnerOverrideRoute.auditName(actor.getEffectiveName(), overriding), method, route, 200);
+            }
             InternalApiServer.sendJson(exchange, 200, result);
         } catch (ApiError e) {
             DataObject body = DataObject.empty().put("error", e.getMessage());
@@ -259,6 +278,26 @@ public class TicketAdminApi {
         }
     }
 
+    // ---------- the bot owner's override (T-445) ----------
+
+    private static String ownerName(Guild guild, long userId) {
+        String name = com.runeclans.bot.discord.DiscordLookups.userName(guild.getJDA(), userId);
+        return name == null || name.isBlank() ? "The bot owner" : name;
+    }
+
+    /**
+     * The name a site change is logged under, as the clan sees it in its site history (T-445, Drake: clans see the owner's edits): a RuneClan
+     * Admin who has no owner rights on this site of their own is marked as one; anyone else by name, or as "A Site Admin" when not a member.
+     */
+    static String siteAuditName(String memberName, SiteRoles.Facts facts, SiteRoles.Settings settings) {
+        if (facts != null && SiteRoles.onlyAsOverallAdmin(facts, settings)) return memberName == null ? "A RuneClan Admin" : memberName + " (RuneClan Admin)";
+        return memberName != null ? memberName : facts != null && facts.overallAdmin() ? "A RuneClan Admin" : "A Site Admin";
+    }
+
+    private SiteRoles.Settings siteRoles(SiteCaller site) {
+        return clanSiteAdmin.siteSettings(site.guildId());
+    }
+
     // ---------- who is asking ----------
 
     /** The asker's Discord id from the request, or 0 if there isn't a usable one. */
@@ -302,7 +341,7 @@ public class TicketAdminApi {
      * {@code null} for a path that doesn't exist. Pages that ask Discord a lot are served from {@link AdminReads}' cache and writes that talk to
      * Discord get a time limit ({@link AdminRoutePolicy}); every change drops the server's cached pages.
      */
-    private DataObject route(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) throws IOException {
+    private DataObject route(HttpExchange exchange, Guild guild, Member actor, boolean overriding, String method, String[] parts) throws IOException {
         try {
             switch (AdminRoutePolicy.modeOf(method, parts)) {
                 case CACHED -> {
@@ -311,7 +350,7 @@ public class TicketAdminApi {
                 }
                 case BOUNDED -> {
                     return AdminReads.bounded(guild, () -> routeNow(exchange, guild, actor, method, parts),
-                            () -> auditStore.audit(guild.getIdLong(), actor.getId(), actor.getEffectiveName(), method, String.join("/", parts), 202));
+                            () -> auditStore.audit(guild.getIdLong(), actor.getId(), OwnerOverrideRoute.auditName(actor.getEffectiveName(), overriding), method, String.join("/", parts), 202));
                 }
                 default -> {
                     return routeNow(exchange, guild, actor, method, parts);

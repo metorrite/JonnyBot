@@ -153,6 +153,14 @@ public final class SiteRoles {
     }
 
     /**
+     * Whether the person owns the site only because they are a RuneClan Admin (N5): without that they would not be its owner. The site's
+     * history and the editor then say they act as a RuneClan Admin (T-445), so the clan can tell those changes apart.
+     */
+    public static boolean onlyAsOverallAdmin(Facts facts, Settings settings) {
+        return facts != null && facts.overallAdmin() && resolve(facts.withOverallAdmin(false), settings) != Role.OWNER;
+    }
+
+    /**
      * The person's role on a bot-less site's public pages, where nothing vouches for them but their sign-in: the person who claimed the site is
      * its owner and the editors named by user id are editors; everyone else signed in is a guest, because without the bot nobody can tell who is
      * in the server. (The site's admin routes know more: there the website signs whether the person owns or manages the server.)

@@ -48,6 +48,11 @@ public class OverviewAdminApi {
         return owners.isOwner(guild.getJDA(), userId);
     }
 
+    /** {@link #isOwner} from what is already known, never asking Discord ({@link BotOwners#isKnownOwner}). */
+    boolean isKnownOwner(long userId) {
+        return owners.isKnownOwner(userId);
+    }
+
     DataObject overview(Guild guild, Member actor) {
         long guildId = guild.getIdLong();
         DataObject attention = ops.attention(guild);

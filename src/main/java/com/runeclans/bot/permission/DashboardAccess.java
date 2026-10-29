@@ -18,14 +18,23 @@ public class DashboardAccess {
     private final AdminRoleFilter adminRoleFilter;
     private final PermissionGroupService groups;
     private final BotConfig botConfig;
+    private final OwnerOverride ownerOverride;
 
-    public DashboardAccess(AdminRoleFilter adminRoleFilter, PermissionGroupService groups, BotConfig botConfig) {
+    public DashboardAccess(AdminRoleFilter adminRoleFilter, PermissionGroupService groups, BotConfig botConfig, OwnerOverride ownerOverride) {
         this.adminRoleFilter = adminRoleFilter;
         this.groups = groups;
         this.botConfig = botConfig;
+        this.ownerOverride = ownerOverride;
+    }
+
+    /** The bot owner's acknowledged "lift restrictions" mode per server (T-445). */
+    public OwnerOverride ownerOverride() {
+        return ownerOverride;
     }
 
     public Tier tierOf(Guild guild, Member member) {
+        // the bot owner with restrictions lifted for this server (T-445): its Admin until the override ends
+        if (ownerOverride.active(guild.getIdLong(), member.getIdLong())) return Tier.ADMIN;
         boolean admin = member.isOwner() || adminRoleFilter.isAuthorized(guild, member)
                 || managesOtherServer(botConfig.getGuildId(), guild.getIdLong(), member.hasPermission(Permission.ADMINISTRATOR), member.hasPermission(Permission.MANAGE_SERVER));
         return tierOf(admin, admin || groups.isMember(guild, member, PermissionGroup.DEVELOPER));
