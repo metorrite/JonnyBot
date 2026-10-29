@@ -163,6 +163,9 @@ class HubClientPartsTest {
         cache.put("/v1/guilds/1/role-mappings", ok("r"), Set.of("sites"));
         assertEquals(2, HubChanges.evict(cache, "site.published", DataObject.empty()));
         assertNull(cache.fresh("/v1/guilds/1/site"));
+        // a community's mapped Discord role is one of the role mappings (T-732)
+        cache.put("/v1/guilds/1/role-mappings", ok("r"), Set.of("sites"));
+        assertEquals(1, HubChanges.evict(cache, "community.changed", DataObject.empty()));
         assertEquals(0, HubChanges.evict(cache, null, null));
     }
 
