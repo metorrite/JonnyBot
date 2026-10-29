@@ -109,6 +109,11 @@ public class CacheBus {
         }
     }
 
+    /** Whether {@code BOT_CACHE_NOTIFY} switches the signals on in this process (read before the bus starts, by the role check). */
+    public static boolean on() {
+        return switchedOn(setting());
+    }
+
     static boolean switchedOn(String raw) {
         return raw != null && (raw.strip().equalsIgnoreCase("true") || raw.strip().equals("1"));
     }
