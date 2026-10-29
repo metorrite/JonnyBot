@@ -10,6 +10,7 @@ import java.awt.Color;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 
@@ -56,8 +57,8 @@ final class RequestCardLogic {
      * The body of a press: the change and who pressed. Administrator and owner come from Discord; the hub believes them only from RuneClans'
      * own bot and checks everything else (site admins, request handler roles) itself.
      */
-    static DataObject pressBody(Press p, String discordId, boolean administrator, boolean owner) {
-        DataObject body = DataObject.empty();
+    static DataObject pressBody(Press p, String guildId, String discordId, boolean administrator, boolean owner) {
+        DataObject body = DataObject.empty().put("guildId", guildId);
         if (p.claim()) {
             if (p.action().equals("claim")) body.put("assignee", "me");
             else body.putNull("assignee");
@@ -65,6 +66,26 @@ final class RequestCardLogic {
             body.put("status", p.action());
         }
         return body.put("by", DataObject.empty().put("discordId", discordId).put("administrator", administrator).put("owner", owner));
+    }
+
+    /** The hub's raw call with headers ({@link RuneClansHubClient#call(String, String, String, Map)}). */
+    @FunctionalInterface
+    interface HubCall {
+        RuneClansHubClient.Answer call(String method, String path, String body, Map<String, String> headers);
+    }
+
+    /**
+     * Sends a press to the hub, at the rev the card showed ({@code If-Match}), with who pressed and what Discord says about them, and words
+     * the answer. A hub that can't be asked is "try again"; the hub decides who may press.
+     */
+    static Outcome press(Press p, String guildId, String discordId, boolean administrator, boolean owner, HubCall hub) {
+        RuneClansHubClient.Answer a;
+        try {
+            a = hub.call("PUT", pressPath(p), pressBody(p, guildId, discordId, administrator, owner).toString(), Map.of("If-Match", Long.toString(p.rev())));
+        } catch (RuntimeException e) {
+            a = null;
+        }
+        return answered(a);
     }
 
     /** Words the hub's answer to a press: null (not asked) or a 5xx is "try again"; nothing is cached or retried. */
@@ -75,9 +96,10 @@ final class RequestCardLogic {
         if (a.status() == 409 && json != null && json.optObject("current").isPresent()) {
             return new Outcome(json.getObject("current"), "requests.changed_elsewhere", null);
         }
-        if (a.status() == 403) return new Outcome(null, "requests.not_allowed", null);
-        if (a.status() == 404) return new Outcome(null, "requests.not_here", null);
         String message = json == null ? null : json.getString("message", null);
+        String error = json == null ? null : json.getString("error", null);
+        if (a.status() == 403 && ("not_allowed".equals(error) || message == null || message.isBlank())) return new Outcome(null, "requests.not_allowed", null);
+        if (a.status() == 404) return new Outcome(null, "requests.not_here", null);
         return message == null || message.isBlank() ? new Outcome(null, "requests.try_again", null) : new Outcome(null, null, clean(message, 300));
     }
 

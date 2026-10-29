@@ -30,7 +30,7 @@ import java.util.function.Supplier;
 
 /**
  * With {@code RUNECLANS_HUB_ENABLED} on, plugin events reach the bot from the RuneClans hub instead of its own ingest (runeclans-hub HUB-DESIGN.md
- * section 7): every 30 seconds it reads JonnyBot's change feed and hands each {@code plugin.event} to the same {@link PluginEventSink}s
+ * section 7): every few seconds ({@link #POLL_EVERY_SECONDS}) it reads JonnyBot's change feed and hands each {@code plugin.event} to the same {@link PluginEventSink}s
  * (points, event tiles) the bot's own ingest uses. It also, when the bot connects, registers the servers it is in, and when a player grants
  * JonnyBot with identity, adds them to those of its servers they are a member of.
  * <ul>
@@ -44,6 +44,11 @@ import java.util.function.Supplier;
 public class RuneClansFeedPoller {
     private static final Logger log = LoggerFactory.getLogger(RuneClansFeedPoller.class);
     static final int PAGE = 200;
+    /**
+     * How often the feed is read. Short so a request changed on the website shows on its Discord card within about 5 seconds (T-734); an
+     * empty read is one cheap call, far inside a first-party key's limit.
+     */
+    static final int POLL_EVERY_SECONDS = 3;
 
     private final RuneClansHubClient hub;
     private final Relay relay;
@@ -79,7 +84,7 @@ public class RuneClansFeedPoller {
             } catch (RuntimeException e) {
                 log.warn("RuneClans feed poll failed: {}", e.getClass().getSimpleName());
             }
-        }, 20, 30, TimeUnit.SECONDS);
+        }, 20, POLL_EVERY_SECONDS, TimeUnit.SECONDS);
         // writes the hub couldn't take when they were made (hub down or busy), held in memory for up to 5 minutes
         executor.scheduleWithFixedDelay(() -> {
             try {

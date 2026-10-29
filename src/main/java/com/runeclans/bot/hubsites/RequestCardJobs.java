@@ -1,5 +1,6 @@
 package com.runeclans.bot.hubsites;
 
+import com.runeclans.bot.alerts.AutoPostRouter;
 import com.runeclans.bot.discord.Containers;
 import com.runeclans.bot.discord.jobs.DiscordJob;
 import com.runeclans.bot.discord.jobs.DiscordJobHandler;
@@ -80,22 +81,43 @@ public class RequestCardJobs implements DiscordJobHandler {
 
     @Override
     public DataObject run(JDA jda, DiscordJob job) {
+        // a development bot in a real server never posts cards or changes roles on its own (turn posting on with /dev toggleposting to test)
+        if (AutoPostRouter.skip(job.kind().equals(ROLE) ? "A community role change" : "A request card")) return DataObject.empty().put("skipped", "dev");
         return job.kind().equals(ROLE) ? role(DiscordJobs.guild(jda, job), job.payload()) : card(DiscordJobs.guild(jda, job), job.payload());
+    }
+
+    /** What a card job does: nothing (an older change), edit the card at {@code messageId}, or post a new one. */
+    record Plan(String action, String messageId) {
+        static final Plan SKIP = new Plan("skip", null);
+        static final Plan POST = new Plan("post", null);
+    }
+
+    /**
+     * Newest wins: a change older than the card already shows is skipped. Otherwise the card in this channel is edited, as the hub knows it
+     * ({@code request.external}) or as this process posted it ({@code posted}: {channelId, messageId}); with none, a new one is posted.
+     */
+    static Plan plan(DataObject request, String channelId, Long shownRev, String[] posted) {
+        if (shownRev != null && shownRev > request.getLong("rev", 0)) return Plan.SKIP;
+        DataObject external = request.optObject("external").orElse(null);
+        if (external != null && channelId.equals(external.getString("channelId", null)) && external.getString("messageId", null) != null) {
+            return new Plan("edit", external.getString("messageId"));
+        }
+        return posted != null && posted[0].equals(channelId) ? new Plan("edit", posted[1]) : Plan.POST;
     }
 
     private DataObject card(Guild guild, DataObject payload) {
         DataObject request = payload.getObject("request");
         String id = request.getString("id", "");
         long rev = request.getLong("rev", 0);
-        Long seen = shown.get(id);
-        if (seen != null && seen > rev) return DataObject.empty().put("skipped", "older");
         String channelId = payload.getString("channelId", null);
         if (channelId == null) throw new DiscordJobs.Refused("No channel is picked for requests yet.");
+        Plan plan = plan(request, channelId, shown.get(id), posted.get(id));
+        if (plan == Plan.SKIP) return DataObject.empty().put("skipped", "older");
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) throw new DiscordJobs.Refused("The requests channel no longer exists.");
         if (!channel.canTalk()) throw new DiscordJobs.Refused("The bot can't post in #" + channel.getName() + ".");
         Container view = view(RequestCardLogic.card(request, (key, args) -> Text.of(guild, key, args)));
-        String messageId = placeIn(request, id, channelId);
+        String messageId = plan.messageId();
         if (messageId != null) {
             try {
                 DiscordJobs.send(channel.editMessageComponentsById(messageId, List.of(view)).useComponentsV2(true).setAllowedMentions(NO_PINGS));
@@ -115,14 +137,6 @@ public class RequestCardJobs implements DiscordJobHandler {
         return DataObject.empty().put("messageId", sent.getId()).put("edited", false);
     }
 
-    /** The card's message in this channel: as the hub knows it, else as this process posted it; null when there is none yet. */
-    private String placeIn(DataObject request, String id, String channelId) {
-        DataObject external = request.optObject("external").orElse(null);
-        if (external != null && channelId.equals(external.getString("channelId", null))) return external.getString("messageId", null);
-        String[] here = posted.get(id);
-        return here != null && here[0].equals(channelId) ? here[1] : null;
-    }
-
     private DataObject role(Guild guild, DataObject payload) {
         Role role = guild.getRoleById(payload.getString("roleId"));
         if (role == null) throw new DiscordJobs.Refused("The community's role no longer exists.");
@@ -136,10 +150,16 @@ public class RequestCardJobs implements DiscordJobHandler {
             if (!give) return DataObject.empty().put("has", false); // left the server: nothing to take
             throw new DiscordJobs.Refused("They aren't in the server.");
         }
-        boolean has = member.getRoles().contains(role);
-        if (give && !has) DiscordJobs.send(guild.addRoleToMember(member, role).reason("Joined the community on the website"));
-        if (!give && has) DiscordJobs.send(guild.removeRoleFromMember(member, role).reason("Left the community on the website"));
+        String change = roleChange(give, member.getRoles().contains(role));
+        if ("add".equals(change)) DiscordJobs.send(guild.addRoleToMember(member, role).reason("Joined the community on the website"));
+        if ("remove".equals(change)) DiscordJobs.send(guild.removeRoleFromMember(member, role).reason("Left the community on the website"));
         return DataObject.empty().put("roleId", role.getId()).put("has", give);
+    }
+
+    /** What to do with the role: {@code add}, {@code remove}, or null when the member is already as asked (so a repeat is harmless). */
+    static String roleChange(boolean give, boolean has) {
+        if (give == has) return null;
+        return give ? "add" : "remove";
     }
 
     /** A card as a Discord message: its lines, then its buttons (five to a row). */

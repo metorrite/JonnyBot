@@ -21,6 +21,7 @@ class RequestCardLogicTest {
     // fake ids, made at runtime
     private static final String PERSON = "4".repeat(18);
     private static final String ADMIN = "5".repeat(18);
+    private static final String GUILD = "2".repeat(18);
     private static final String ID = UUID.randomUUID().toString();
     /** The key and its arguments, so tests see what was asked for. */
     private static final BiFunction<String, Object[], String> TEXT = (key, args) -> args.length == 0 ? key : key + Arrays.toString(args);
@@ -98,16 +99,21 @@ class RequestCardLogicTest {
     void aPressNamesTheChangeAndWhoPressed() {
         RequestCardLogic.Press accept = RequestCardLogic.parse(RequestCardLogic.buttonId("accepted", ID, 2));
         assertEquals("/v1/requests/" + ID + "/status", RequestCardLogic.pressPath(accept));
-        DataObject body = RequestCardLogic.pressBody(accept, ADMIN, true, false);
+        DataObject body = RequestCardLogic.pressBody(accept, GUILD, ADMIN, true, false);
         assertEquals("accepted", body.getString("status"));
         assertEquals(ADMIN, body.getObject("by").getString("discordId"));
         assertTrue(body.getObject("by").getBoolean("administrator"));
         assertFalse(body.getObject("by").getBoolean("owner"));
+        assertEquals(GUILD, body.getString("guildId"));
+        DataObject plain = RequestCardLogic.pressBody(accept, GUILD, PERSON, false, false).getObject("by");
+        assertFalse(plain.getBoolean("administrator"), "a member without Administrator is sent as one");
+        assertFalse(plain.getBoolean("owner"));
+        assertTrue(RequestCardLogic.pressBody(accept, GUILD, PERSON, false, true).getObject("by").getBoolean("owner"));
 
         RequestCardLogic.Press claim = RequestCardLogic.parse(RequestCardLogic.buttonId("claim", ID, 2));
         assertEquals("/v1/requests/" + ID + "/assignee", RequestCardLogic.pressPath(claim));
-        assertEquals("me", RequestCardLogic.pressBody(claim, ADMIN, false, false).getString("assignee"));
-        DataObject letGo = RequestCardLogic.pressBody(RequestCardLogic.parse(RequestCardLogic.buttonId("unclaim", ID, 2)), ADMIN, false, false);
+        assertEquals("me", RequestCardLogic.pressBody(claim, GUILD, ADMIN, false, false).getString("assignee"));
+        DataObject letGo = RequestCardLogic.pressBody(RequestCardLogic.parse(RequestCardLogic.buttonId("unclaim", ID, 2)), GUILD, ADMIN, false, false);
         assertTrue(letGo.hasKey("assignee") && letGo.isNull("assignee"));
     }
 
@@ -124,6 +130,11 @@ class RequestCardLogicTest {
         assertEquals("requests.changed_elsewhere", stale.noteKey());
 
         assertEquals("requests.not_allowed", RequestCardLogic.answered(new RuneClansHubClient.Answer(403, DataObject.empty())).noteKey());
+        assertEquals("requests.not_allowed", RequestCardLogic.answered(new RuneClansHubClient.Answer(403,
+                DataObject.empty().put("error", "not_allowed").put("message", "Only this site's admins can do this."))).noteKey());
+        RequestCardLogic.Outcome otherRefusal = RequestCardLogic.answered(new RuneClansHubClient.Answer(403,
+                DataObject.empty().put("error", "link_needed").put("message", "Link a character first.")));
+        assertEquals("Link a character first.", otherRefusal.hubMessage(), "another refusal keeps the hub's words");
         assertNull(RequestCardLogic.answered(new RuneClansHubClient.Answer(403, DataObject.empty())).card());
         assertEquals("requests.not_here", RequestCardLogic.answered(new RuneClansHubClient.Answer(404, DataObject.empty())).noteKey());
         assertEquals("requests.try_again", RequestCardLogic.answered(null).noteKey());
@@ -132,5 +143,39 @@ class RequestCardLogicTest {
         RequestCardLogic.Outcome bad = RequestCardLogic.answered(new RuneClansHubClient.Answer(400,
                 DataObject.empty().put("error", "invalid").put("message", "A join request the person withdrew stays closed.")));
         assertEquals("A join request the person withdrew stays closed.", bad.hubMessage());
+    }
+
+    @Test
+    void aPressGoesToTheHubAtTheCardsRevAndItsAnswerIsShown() {
+        List<String[]> calls = new java.util.ArrayList<>();
+        DataObject now = request("application", "accepted", DataArray.empty()).put("rev", 4);
+        RequestCardLogic.Press accept = RequestCardLogic.parse(RequestCardLogic.buttonId("accepted", ID, 3));
+        RequestCardLogic.Outcome ok = RequestCardLogic.press(accept, GUILD, PERSON, false, false, (method, path, body, headers) -> {
+            calls.add(new String[] {method, path, body, headers.get("If-Match")});
+            return new RuneClansHubClient.Answer(200, now);
+        });
+        assertEquals("PUT", calls.get(0)[0]);
+        assertEquals("/v1/requests/" + ID + "/status", calls.get(0)[1]);
+        assertEquals("3", calls.get(0)[3], "the rev the card showed");
+        DataObject sent = DataObject.fromJson(calls.get(0)[2]);
+        assertFalse(sent.getObject("by").getBoolean("administrator"));
+        assertFalse(sent.getObject("by").getBoolean("owner"));
+        assertEquals(now, ok.card());
+
+        // refused: the card stays as it is and only the presser is told
+        RequestCardLogic.Outcome refused = RequestCardLogic.press(accept, GUILD, PERSON, false, false,
+                (m, p, b, h) -> new RuneClansHubClient.Answer(403, DataObject.empty().put("error", "not_allowed").put("message", "No.")));
+        assertNull(refused.card());
+        assertEquals("requests.not_allowed", refused.noteKey());
+        // changed first: the card re-renders from the hub's current request
+        DataObject current = request("application", "declined", DataArray.empty()).put("rev", 5);
+        RequestCardLogic.Outcome stale = RequestCardLogic.press(accept, GUILD, PERSON, false, false,
+                (m, p, b, h) -> new RuneClansHubClient.Answer(409, DataObject.empty().put("error", "changed_elsewhere").put("current", current)));
+        assertEquals(current, stale.card());
+        // a hub that throws is "try again", never an error to the presser
+        RequestCardLogic.Outcome down = RequestCardLogic.press(accept, GUILD, PERSON, false, false, (m, p, b, h) -> {
+            throw new IllegalStateException("down");
+        });
+        assertEquals("requests.try_again", down.noteKey());
     }
 }

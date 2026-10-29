@@ -21,7 +21,9 @@ import org.slf4j.LoggerFactory;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Requests in Discord (T-734, runeclans-hub BUILD-A-BOT section 10). The hub is the one store; a card is a copy:
@@ -45,15 +47,40 @@ public class RequestCards extends ListenerAdapter implements BotListener, HubFee
     private final RuneClansHubClient hub;
     private final ScheduledExecutorService lane = BotScheduler.lane("request-cards");
 
+    /** Jobs not yet in the outbox, by their dedupe key (newest wins). */
+    private final Map<String, Job> waiting = new ConcurrentHashMap<>();
+
     public RequestCards(DiscordOutbox outbox, RuneClansHubClient hub) {
         this.outbox = outbox;
         this.hub = hub;
+        lane.scheduleWithFixedDelay(() -> {
+            if (!waiting.isEmpty()) enqueueWaiting();
+        }, 5, 5, TimeUnit.SECONDS);
     }
 
     @Override
     public void onHubFeed(String kind, DataObject data) {
         Job job = job(kind, data);
-        if (job != null) outbox.enqueue(job.kind(), job.guildId(), 0L, job.dedupe(), job.payload());
+        if (job == null) return;
+        waiting.put(job.dedupe(), job);
+        lane.execute(this::enqueueWaiting);
+    }
+
+    /**
+     * Hands the waiting jobs to the outbox. One the outbox couldn't take (its database briefly down) stays waiting, newest per request, and
+     * is tried again every few seconds: the feed's cursor has already moved past it. Lost only if the bot stops first; a site admin's
+     * "Send the cards again" puts such cards right.
+     */
+    void enqueueWaiting() {
+        for (Job job : List.copyOf(waiting.values())) {
+            try {
+                outbox.enqueue(job.kind(), job.guildId(), 0L, job.dedupe(), job.payload());
+                waiting.remove(job.dedupe(), job);
+            } catch (RuntimeException e) {
+                log.warn("A request card couldn't be queued yet ({}); trying again shortly", e.getClass().getSimpleName());
+                return;
+            }
+        }
     }
 
     /** An outbox job for one hub feed entry. */
@@ -89,19 +116,16 @@ public class RequestCards extends ListenerAdapter implements BotListener, HubFee
         if (press == null) return;
         Member member = event.getMember();
         if (member == null || event.getGuild() == null) return;
-        DataObject body = RequestCardLogic.pressBody(press, member.getId(), member.hasPermission(Permission.ADMINISTRATOR), member.isOwner());
-        event.deferEdit().queue(hook -> lane.execute(() -> answer(event, hook, press, body)),
+        String guildId = event.getGuild().getId();
+        String discordId = member.getId();
+        boolean administrator = member.hasPermission(Permission.ADMINISTRATOR);
+        boolean owner = member.isOwner();
+        event.deferEdit().queue(hook -> lane.execute(() -> show(event, hook, RequestCardLogic.press(press, guildId, discordId, administrator, owner, hub::call))),
                 err -> log.info("A request card press couldn't be acknowledged ({})", err.getClass().getSimpleName()));
     }
 
-    private void answer(ButtonInteractionEvent event, InteractionHook hook, RequestCardLogic.Press press, DataObject body) {
-        RuneClansHubClient.Answer a;
-        try {
-            a = hub.call("PUT", RequestCardLogic.pressPath(press), body.toString(), Map.of("If-Match", Long.toString(press.rev())));
-        } catch (RuntimeException e) {
-            a = null;
-        }
-        RequestCardLogic.Outcome outcome = RequestCardLogic.answered(a);
+    /** Shows the hub's answer: the card as it is now, and a private note to the presser when there is one. */
+    private void show(ButtonInteractionEvent event, InteractionHook hook, RequestCardLogic.Outcome outcome) {
         if (outcome.card() != null) {
             RequestCardLogic.Card card = RequestCardLogic.card(outcome.card(), (key, args) -> Text.of(event, key, args));
             hook.editOriginalComponents(List.of(RequestCardJobs.view(card))).useComponentsV2(true).setAllowedMentions(NO_PINGS)

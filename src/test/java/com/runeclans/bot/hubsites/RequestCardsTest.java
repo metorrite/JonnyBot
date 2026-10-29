@@ -2,6 +2,8 @@ package com.runeclans.bot.hubsites;
 
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
+import com.runeclans.bot.discord.jobs.DiscordOutbox;
+import com.runeclans.bot.runeclans.RuneClansHubClient;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -70,5 +72,46 @@ class RequestCardsTest {
         assertNull(HubSiteReporter.remappedGuild("feature.changed", other));
         assertEquals(Long.parseLong(GUILD), HubSiteReporter.remappedGuild("site.roles_changed", entry(DataObject.empty().put("guildId", GUILD))));
         assertNull(HubSiteReporter.remappedGuild("request.changed", feature));
+    }
+
+    @Test
+    void aCardIsEditedWhereItIsAndOlderChangesNeverPaintOverNewerOnes() {
+        DataObject request = DataObject.empty().put("id", REQUEST).put("rev", 3);
+        assertEquals(RequestCardJobs.Plan.POST, RequestCardJobs.plan(request, CHANNEL, null, null), "no card yet: post");
+        assertEquals(RequestCardJobs.Plan.SKIP, RequestCardJobs.plan(request, CHANNEL, 4L, null), "older than the card");
+        assertEquals("post", RequestCardJobs.plan(request, CHANNEL, 3L, null).action(), "the same rev again (re-send): post when there is no card");
+        String message = "5".repeat(18);
+        DataObject known = DataObject.fromJson(request.toString()).put("external", DataObject.empty().put("channelId", CHANNEL).put("messageId", message));
+        assertEquals(new RequestCardJobs.Plan("edit", message), RequestCardJobs.plan(known, CHANNEL, 2L, null), "the hub knows where it is");
+        assertEquals(RequestCardJobs.Plan.POST, RequestCardJobs.plan(known, "4".repeat(18), null, null), "another channel now: a new card");
+        assertEquals(new RequestCardJobs.Plan("edit", message), RequestCardJobs.plan(request, CHANNEL, null, new String[] {CHANNEL, message}),
+                "posted here before the hub heard where");
+    }
+
+    @Test
+    void theRoleIsOnlyChangedWhenTheMemberIsNotAsAsked() {
+        assertEquals("add", RequestCardJobs.roleChange(true, false));
+        assertEquals("remove", RequestCardJobs.roleChange(false, true));
+        assertNull(RequestCardJobs.roleChange(true, true));
+        assertNull(RequestCardJobs.roleChange(false, false));
+    }
+
+    @Test
+    void aCardTheOutboxCouldNotTakeWaitsAndIsTriedAgain() {
+        DiscordOutbox outbox = org.mockito.Mockito.mock(DiscordOutbox.class);
+        org.mockito.Mockito.when(outbox.enqueue(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new IllegalStateException("database down")).thenReturn(null);
+        RuneClansHubClient hub = org.mockito.Mockito.mock(RuneClansHubClient.class);
+        RequestCards cards = new RequestCards(outbox, hub);
+        cards.onHubFeed("request.changed", cardEntry(CHANNEL));
+        cards.enqueueWaiting();
+        cards.enqueueWaiting();
+        org.mockito.Mockito.verify(outbox, org.mockito.Mockito.atLeast(2)).enqueue(org.mockito.ArgumentMatchers.eq(RequestCardJobs.CARD),
+                org.mockito.ArgumentMatchers.eq(Long.parseLong(GUILD)), org.mockito.ArgumentMatchers.eq(0L),
+                org.mockito.ArgumentMatchers.eq("request-card:" + REQUEST), org.mockito.ArgumentMatchers.any());
+        int calls = org.mockito.Mockito.mockingDetails(outbox).getInvocations().size();
+        cards.enqueueWaiting();
+        assertEquals(calls, org.mockito.Mockito.mockingDetails(outbox).getInvocations().size(), "once queued it is not queued again");
     }
 }
