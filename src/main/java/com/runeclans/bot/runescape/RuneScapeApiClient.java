@@ -331,6 +331,7 @@ public class RuneScapeApiClient {
                 log.warn("Clan hiscores request for '{}' returned HTTP {}", clanName, response.statusCode());
                 return List.of();
             }
+            if (!isRosterAnswer(response.headers().firstValue("Content-Type").orElse(""))) return List.of();
 
             List<String> lines = response.body().lines().toList();
             if (lines.size() < 2) return List.of();
@@ -356,6 +357,14 @@ public class RuneScapeApiClient {
             log.warn("Failed to parse clan roster for '{}'", clanName, e);
             return List.of();
         }
+    }
+
+    /**
+     * Jagex answers a clan name it doesn't know with a redirect to its ranking page, which the client follows (verified live 2026-10-29:
+     * 302 to {@code /m=clan-hiscores/ranking}, then 200 {@code text/html}), so an HTML answer means "no such clan", never rows to parse.
+     */
+    static boolean isRosterAnswer(String contentType) {
+        return !contentType.toLowerCase(java.util.Locale.ROOT).contains("html");
     }
 
     /** Only the plain-seconds form of {@code Retry-After} is parsed — the alternative HTTP-date form is rare enough on this kind of endpoint that it's not worth the extra parsing surface; a miss just falls back to the poll coordinator's own default backoff. */
