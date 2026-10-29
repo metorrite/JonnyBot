@@ -103,7 +103,9 @@ viewer call. Both sides pin the same fixed vector (`ServerFactsTest`, `packages/
     sends; the bot keeps it within 5 to 240 and uses 30 when it is left out.
   - While it runs, `DashboardAccess.tierOf` answers ADMIN for that person in that one server, so
     `whoami` says `allowed` and the whole dashboard opens. A bot owner who isn't a member gets a stand-in member (`OwnerStandIn`): their id
-    and name, no roles and no Discord permissions, so anything needing real Discord rights still refuses.
+    and name, no roles and no Discord permissions. Their own Discord rights play no part; routes that act in Discord use the bot's rights,
+    as they do for any Admin.
   - The lift, the end and every change are written to the server's audit log, changes as `<name> (bot owner, restrictions lifted)`.
   - `whoami` gives the bot owner `ownerOverride: {active, until, minutes}` so the dashboard shows a banner while it runs.
-  - Kept in memory: a restart ends every override.
+  - Kept in memory: a restart ends every override. It holds only in the bot process that took the lift (one today); several API replicas would need it in the database.
+  - Someone removed as a bot owner keeps a running override until the owner list is next looked up (at most about ten minutes).

@@ -95,4 +95,16 @@ class BotOwnersTest {
 
         verify(jda, times(1)).retrieveApplicationInfo();
     }
+
+    @Test
+    void theKnownOwnerCheckNeverAsksDiscord() {
+        assertTrue(owners.isKnownOwner(CONFIGURED), "configured owners are always known");
+        assertFalse(owners.isKnownOwner(APP_OWNER), "not known until a lookup found them");
+        verify(jda, times(0)).retrieveApplicationInfo();
+
+        discordSays(APP_OWNER);
+        owners.isOwner(jda, APP_OWNER);
+        assertTrue(owners.isKnownOwner(APP_OWNER), "known once a lookup found them");
+        assertFalse(owners.isKnownOwner(99));
+    }
 }

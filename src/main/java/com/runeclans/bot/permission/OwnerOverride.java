@@ -12,12 +12,13 @@ import java.util.function.LongSupplier;
  * server's clan site, its layout and its site roles. After an explicit acknowledgement on the website the owner may open the whole dashboard of
  * that one server as its Admin for the length the website sends (RuneClan Admin > Switches, {@code owner-override-minutes}), kept within
  * {@link #MIN_MINUTES} to {@link #MAX_MINUTES}, {@link #DEFAULT_MINUTES} when it sends none; {@link DashboardAccess#tierOf} answers ADMIN while it lasts. Only the bot's owner can
- * start it (checked by the caller, {@code TicketAdminApi}); every start, end and change is written to the server's own audit log, so the
+ * start it (checked by {@code OwnerOverrideRoute} before it calls {@link #lift}); every start, end and change is written to the server's own audit log, so the
  * clan sees it. Kept in memory on purpose: a bot restart ends every override, so nothing is left open by mistake. That also means it holds
  * only in the one bot process that took the lift: fine while the internal API runs in one process (it does today); with several API
  * replicas the lift would have to move to the database.
  * <p>
- * {@link #active} checks again that the person still owns the bot, from what is already known ({@link BotOwners#isKnownOwner}, no Discord call).
+ * {@link #active} checks again that the person still owns the bot, from what is already known ({@link BotOwners#isKnownOwner}, no Discord call). Someone
+ * removed as an owner keeps a running override until the owner list is next looked up (at most about ten minutes), or until it ends.
  */
 @BService
 public class OwnerOverride {

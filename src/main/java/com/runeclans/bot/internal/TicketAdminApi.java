@@ -153,10 +153,11 @@ public class TicketAdminApi {
             OwnerOverride override = access.ownerOverride();
             // the bot owner's "lift restrictions" mode (T-445): started and ended here, by the owner alone, after the website's acknowledgement
             if (parts.length == 1 && parts[0].equals("owner-override")) {
-                InternalApiServer.sendJson(exchange, 200, OwnerOverrideRoute.handle(override, id -> overviewAdmin.isOwner(guild, id), () -> body(exchange),
+                InternalApiServer.sendJson(exchange, 200, OwnerOverrideRoute.handle(override, id -> overviewAdmin.isKnownOwner(id) || overviewAdmin.isOwner(guild, id), () -> body(exchange),
                         auditStore::audit, () -> ownerName(guild, askerId), guild.getIdLong(), askerId, method));
                 return;
             }
+            // decided once per request: the access check, the stand-in and the audit name all use this same answer
             boolean overriding = askerId != 0 && override.active(guild.getIdLong(), askerId);
             Member found = actorOf(exchange, guild);
             // while it runs, the owner is this server's Admin even when they aren't a member of it: a stand-in with no roles or Discord rights
@@ -171,13 +172,13 @@ public class TicketAdminApi {
                 // An Event coordinator is not allowed in the dashboard as such (allowed stays false); the website lets them into the event manager only.
                 if (coordinator) who.put("coordinator", true).put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
                 if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
+                // an overall RuneClans admin (N5) may open this server's site admin and editor, member or not
+                who.put("overallAdmin", askerId != 0 && overallAdmins.isOverallAdmin(guild.getJDA(), askerId));
                 // the bot owner may lift the restrictions for this server (T-445); say whether they did and until when
-                // from what is already known (no Discord call inside the web request); the lift itself checks with Discord
+                // from what is already known (no Discord call inside the web request; the overall admin check above has just filled it)
                 if (askerId != 0 && overviewAdmin.isKnownOwner(askerId)) who.put("ownerOverride", OwnerOverrideRoute.state(override, guild.getIdLong(), askerId));
                 // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
                 // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
-                // an overall RuneClans admin (N5) may open this server's site admin and editor, member or not
-                who.put("overallAdmin", askerId != 0 && overallAdmins.isOverallAdmin(guild.getJDA(), askerId));
                 boolean beta = tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId));
                 who.put("beta", beta);
                 // Per restricted area: the beta rule above, or a grant on the owner's access list for that area. Fails closed.
@@ -217,7 +218,7 @@ public class TicketAdminApi {
                 return;
             }
 
-            DataObject result = route(exchange, guild, actor, method, parts);
+            DataObject result = route(exchange, guild, actor, overriding, method, parts);
             if (result == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
                 return;
@@ -225,7 +226,7 @@ public class TicketAdminApi {
             // Every change made from the dashboard is written to the audit log (never the request body, which may hold private text).
             if (!method.equals("GET")) {
                 // the clan sees the owner's changes in its own log, marked as made with restrictions lifted (T-445)
-                auditStore.audit(guild.getIdLong(), actor.getId(), auditName(guild, actor), method, route, 200);
+                auditStore.audit(guild.getIdLong(), actor.getId(), OwnerOverrideRoute.auditName(actor.getEffectiveName(), overriding), method, route, 200);
             }
             InternalApiServer.sendJson(exchange, 200, result);
         } catch (ApiError e) {
@@ -278,11 +279,6 @@ public class TicketAdminApi {
     }
 
     // ---------- the bot owner's override (T-445) ----------
-
-    /** The name a dashboard change is logged under: marked when the bot owner made it with restrictions lifted (T-445). */
-    private String auditName(Guild guild, Member actor) {
-        return OwnerOverrideRoute.auditName(actor.getEffectiveName(), access.ownerOverride().active(guild.getIdLong(), actor.getIdLong()));
-    }
 
     private static String ownerName(Guild guild, long userId) {
         String name = com.runeclans.bot.discord.DiscordLookups.userName(guild.getJDA(), userId);
@@ -345,7 +341,7 @@ public class TicketAdminApi {
      * {@code null} for a path that doesn't exist. Pages that ask Discord a lot are served from {@link AdminReads}' cache and writes that talk to
      * Discord get a time limit ({@link AdminRoutePolicy}); every change drops the server's cached pages.
      */
-    private DataObject route(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) throws IOException {
+    private DataObject route(HttpExchange exchange, Guild guild, Member actor, boolean overriding, String method, String[] parts) throws IOException {
         try {
             switch (AdminRoutePolicy.modeOf(method, parts)) {
                 case CACHED -> {
@@ -354,7 +350,7 @@ public class TicketAdminApi {
                 }
                 case BOUNDED -> {
                     return AdminReads.bounded(guild, () -> routeNow(exchange, guild, actor, method, parts),
-                            () -> auditStore.audit(guild.getIdLong(), actor.getId(), auditName(guild, actor), method, String.join("/", parts), 202));
+                            () -> auditStore.audit(guild.getIdLong(), actor.getId(), OwnerOverrideRoute.auditName(actor.getEffectiveName(), overriding), method, String.join("/", parts), 202));
                 }
                 default -> {
                     return routeNow(exchange, guild, actor, method, parts);
