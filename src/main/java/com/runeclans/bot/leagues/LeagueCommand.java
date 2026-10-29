@@ -86,7 +86,7 @@ public class LeagueCommand {
         return new Reply(Containers.INFO, lines.toArray(String[]::new));
     }
 
-    /** "1. Alpha: 7 pts" per clan from the public page's standings, or a line saying the page couldn't be read. */
+    /** "1. Alpha: 7 pts" per clan from the public page's standings ({@code rank}, as the hub's standings carry it), or a line saying the page couldn't be read. */
     static List<String> standingLines(DataObject page, BiFunction<String, Object[], String> text) {
         if (page == null) return List.of(text.apply("league.standings_unavailable", new Object[0]));
         DataArray standings = page.optArray("standings").orElse(DataArray.empty());
@@ -94,7 +94,7 @@ public class LeagueCommand {
         List<String> out = new ArrayList<>();
         for (int i = 0; i < Math.min(standings.length(), MAX_ROWS); i++) {
             DataObject s = standings.getObject(i);
-            out.add(text.apply("league.standing", new Object[] {s.getInt("placing", i + 1), s.getString("name", "?"), trim(s.getDouble("points", 0))}));
+            out.add(text.apply("league.standing", new Object[] {s.getInt("rank", s.getInt("placing", i + 1)), s.getString("name", "?"), trim(s.getDouble("points", 0))}));
         }
         return out;
     }

@@ -56,8 +56,8 @@ class LeagueCommandTest {
         assertEquals("league.standings_unavailable[]", lines[1]);
         assertEquals(2, lines.length);
         answers.put("/v1/leagues/" + LEAGUE, new RuneClansHubClient.Read(new RuneClansHubClient.Answer(200, DataObject.empty().put("standings",
-                DataArray.empty().add(DataObject.empty().put("placing", 1).put("name", "Alpha").put("points", 7.0))
-                        .add(DataObject.empty().put("placing", 2).put("name", "Beta").put("points", 3.5)))), false, false));
+                DataArray.empty().add(DataObject.empty().put("rank", 1).put("name", "Alpha").put("points", 7.0))
+                        .add(DataObject.empty().put("rank", 2).put("name", "Beta").put("points", 3.5)))), false, false));
         lines = LeagueCommand.reply(hub, GUILD, true, null, TEXT).lines();
         assertEquals("league.standing[1, Alpha, 7]", lines[1]);
         assertEquals("league.standing[2, Beta, 3.5]", lines[2]);
