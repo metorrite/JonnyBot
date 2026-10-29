@@ -3,6 +3,7 @@ package com.runeclans.bot.runeclans;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -36,8 +37,13 @@ final class HubRetry implements RuneClansHubClient.Transport {
 
     @Override
     public RuneClansHubClient.Answer call(String method, String path, String body) {
+        return call(method, path, body, Map.of());
+    }
+
+    @Override
+    public RuneClansHubClient.Answer call(String method, String path, String body, Map<String, String> headers) {
         boolean repeatable = REPEATABLE.contains(method.toUpperCase(Locale.ROOT));
-        RuneClansHubClient.Answer answer = inner.call(method, path, body);
+        RuneClansHubClient.Answer answer = inner.call(method, path, body, headers);
         for (int attempt = 0; repeatable && attempt < BACKOFF.size() && worthRetrying(answer); attempt++) {
             Duration wait = BACKOFF.get(attempt);
             if (answer != null && answer.retryAfterSeconds() != null) wait = Duration.ofSeconds(answer.retryAfterSeconds());
@@ -48,7 +54,7 @@ final class HubRetry implements RuneClansHubClient.Transport {
                 Thread.currentThread().interrupt();
                 return answer;
             }
-            answer = inner.call(method, path, body);
+            answer = inner.call(method, path, body, headers);
         }
         return answer;
     }

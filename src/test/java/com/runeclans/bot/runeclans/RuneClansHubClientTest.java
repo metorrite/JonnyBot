@@ -111,6 +111,28 @@ class RuneClansHubClientTest {
     }
 
     @Test
+    void feedListenersHearEveryEntryAndOneThatFailsStopsNobody() {
+        AtomicReference<DataArray> nextPage = new AtomicReference<>(DataArray.empty());
+        RuneClansHubClient hub = new RuneClansHubClient(on(), (method, path, body) -> {
+            DataArray page = nextPage.getAndSet(DataArray.empty());
+            return new RuneClansHubClient.Answer(200, DataObject.empty().put("data", page).put("nextCursor", "c").put("more", false));
+        });
+        Map<String, String> store = new HashMap<>();
+        List<String> heard = new ArrayList<>();
+        HubFeedListener broken = (kind, data) -> {
+            throw new IllegalStateException("boom");
+        };
+        HubFeedListener listening = (kind, data) -> heard.add(kind + " " + (data == null ? "-" : data.getString("item", "-")));
+        RuneClansFeedPoller.Relay relay = new RuneClansFeedPoller.Relay(hub, () -> Optional.ofNullable(store.get("c")), c -> store.put("c", c), List.of(),
+                g -> { }, List.of(broken, listening));
+        relay.poll(); // first run starts at the end
+        nextPage.set(DataArray.empty().add(DataObject.empty().put("id", "5").put("kind", "request.changed").put("data", DataObject.empty().put("item", "site_application")))
+                .add(DataObject.empty().put("id", "6").put("kind", "site.roles_changed")));
+        relay.poll();
+        assertEquals(List.of("request.changed site_application", "site.roles_changed -"), heard);
+    }
+
+    @Test
     void hubEventsConvertLikeTheBotsOwn() {
         PluginPayload.Event e = RuneClansFeedPoller.Relay.toEvent(event("9", "a1_x", "KILL").getObject("data"));
         assertNotNull(e);

@@ -59,6 +59,7 @@ public final class LaneOwners {
             Map.entry("rsnlink-hub-dm", Owner.GATEWAY),
             Map.entry("community-command", Owner.GATEWAY),
             Map.entry("hub-sites", Owner.GATEWAY),
+            Map.entry("request-cards", Owner.GATEWAY),
             Map.entry("ephemeral-lifecycle", Owner.GATEWAY),
             Map.entry("event-board-panels", Owner.GATEWAY),
             Map.entry("cohost-panels", Owner.GATEWAY),

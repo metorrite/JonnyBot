@@ -48,5 +48,6 @@ class CapabilityReportsTest {
         assertFalse(without.contains("discord.presence"));
         assertFalse(without.contains("discord.messages.report"));
         assertTrue(without.contains("\"discord.feed\"") && without.contains("discord.channels.report"));
+        assertTrue(without.contains("\"discord.requests\""), "request cards need no privileged intent");
     }
 }

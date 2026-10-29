@@ -50,9 +50,9 @@ public class RuneClansFeedPoller {
     private volatile JDA jda;
     private final ScheduledExecutorService executor = BotScheduler.lane("runeclans-feed");
 
-    public RuneClansFeedPoller(RuneClansHubClient hub, RuneClansFeedCursor cursor, List<PluginEventSink> sinks) {
+    public RuneClansFeedPoller(RuneClansHubClient hub, RuneClansFeedCursor cursor, List<PluginEventSink> sinks, List<HubFeedListener> listeners) {
         this.hub = hub;
-        this.relay = new Relay(hub, cursor::load, cursor::save, sinks, this::addToGuilds);
+        this.relay = new Relay(hub, cursor::load, cursor::save, sinks, this::addToGuilds, listeners);
         if (hub.enabled()) start();
     }
 
@@ -108,17 +108,24 @@ public class RuneClansFeedPoller {
         private final Consumer<String> saveCursor;
         private final List<PluginEventSink> sinks;
         private final Consumer<Map.Entry<String, Long>> granted;
+        private final List<HubFeedListener> listeners;
         private final ConcurrentHashMap<String, CachedId> ids = new ConcurrentHashMap<>();
 
         private record CachedId(Optional<Long> id, Instant until) {}
 
         Relay(RuneClansHubClient hub, Supplier<Optional<String>> loadCursor, Consumer<String> saveCursor, List<PluginEventSink> sinks,
               Consumer<Map.Entry<String, Long>> granted) {
+            this(hub, loadCursor, saveCursor, sinks, granted, List.of());
+        }
+
+        Relay(RuneClansHubClient hub, Supplier<Optional<String>> loadCursor, Consumer<String> saveCursor, List<PluginEventSink> sinks,
+              Consumer<Map.Entry<String, Long>> granted, List<HubFeedListener> listeners) {
             this.hub = hub;
             this.loadCursor = loadCursor;
             this.saveCursor = saveCursor;
             this.sinks = List.copyOf(sinks);
             this.granted = granted;
+            this.listeners = List.copyOf(listeners);
         }
 
         /** Reads the feed until it has no more. Returns how many events were passed on. */
@@ -148,6 +155,13 @@ public class RuneClansFeedPoller {
                 DataObject e = entries.getObject(i);
                 String kind = e.getString("kind", "");
                 hub.onHubChange(kind, e.optObject("data").orElse(null));
+                for (HubFeedListener l : listeners) {
+                    try {
+                        l.onHubFeed(kind, e.optObject("data").orElse(null));
+                    } catch (RuntimeException ex) {
+                        log.warn("A hub feed listener failed: {}", ex.getClass().getSimpleName());
+                    }
+                }
                 String alias = e.getString("alias", null);
                 if (alias == null) continue;
                 if (kind.equals("player.grant_changed") && !e.getObject("data").getBoolean("revoked", false) && e.getObject("data").getBoolean("identity", false)) {
