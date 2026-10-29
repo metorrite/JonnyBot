@@ -88,6 +88,18 @@ class HubPollingListTest {
         assertEquals(0, HubPollingList.from(null).groups().size());
     }
 
+    /** A key the hub no longer counts as first-party (403) is treated as off at once, not as an outage kept for six hours. */
+    @Test
+    void aRefusedKeyDropsTheListAtOnce() {
+        MovingClock clock = new MovingClock();
+        boolean[] refused = {false};
+        HubPollingList list = new HubPollingList(path -> refused[0] ? new Answer(403, DataObject.empty()) : page(null, "A", "linked"), clock);
+        assertEquals(1, list.groups().size());
+        refused[0] = true;
+        clock.now = clock.now.plus(HubPollingList.KEEP);
+        assertEquals(0, list.groups().size());
+    }
+
     @Test
     void aHubThatCantBeReachedKeepsTheLastListForSixHours() {
         MovingClock clock = new MovingClock();
