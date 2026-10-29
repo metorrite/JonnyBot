@@ -31,6 +31,7 @@ public final class LaneOwners {
             Map.entry("plugin-retention", Owner.API),
             Map.entry("message-log-purge", Owner.API),
             Map.entry("clan-site-cleanup", Owner.API),
+            Map.entry("clan-site-race", Owner.API), // the leaderboard race's hub reads (T-710), for the website's overview
             Map.entry("address-change-scheduler", Owner.API),
             Map.entry("quick-groups", Owner.API),
             // RuneMetrics polling, its budget and the event trackers that feed it: one budget, kept in the one gateway process (M1, M2).

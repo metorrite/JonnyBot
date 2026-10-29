@@ -49,7 +49,7 @@ class GuildSiteRoutesTest {
         news = mock(SiteNewsService.class);
         api = spy(new SiteApi(mock(SiteStatsRepository.class), mock(PlayerLinkRepository.class), mock(ClanPointsRepository.class), mock(GuildSettingsService.class),
                 mock(WeeklyDigestRepository.class), mock(MemberProfileRepository.class), news, mock(SignupService.class), new SiteCache(), mock(RecapService.class),
-                community, mock(BossStatsService.class), mock(SiteDiscordService.class)));
+                community, mock(BossStatsService.class), mock(SiteDiscordService.class), mock(com.runeclans.bot.clansite.ClanSitePluginFeed.class)));
         BotConfig config = mock(BotConfig.class);
         when(config.getGuildId()).thenReturn(HOME);
         guild = mock(Guild.class);

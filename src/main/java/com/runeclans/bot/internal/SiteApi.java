@@ -1,6 +1,7 @@
 package com.runeclans.bot.internal;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.runeclans.bot.clansite.ClanSitePluginFeed;
 import com.runeclans.bot.configure.GuildSettingsService;
 import com.runeclans.bot.internal.SiteStatsRepository.Gain;
 import com.runeclans.bot.commands.signup.SignupService;
@@ -91,11 +92,13 @@ public class SiteApi {
     private final BossStatsService bossStats;
     private final SiteDiscordService discord;
     private final RecapGate recapGate;
+    private final ClanSitePluginFeed pluginFeed;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
                    MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap, CommunitySettings community, BossStatsService bossStats,
-                   SiteDiscordService discord) {
+                   SiteDiscordService discord, ClanSitePluginFeed pluginFeed) {
         this.discord = discord;
+        this.pluginFeed = pluginFeed;
         this.stats = stats;
         this.links = links;
         this.points = points;
@@ -580,6 +583,17 @@ public class SiteApi {
             roster.add(DataObject.empty().put("weekStart", w.weekStart().toString()).put("joins", w.joins()).put("leaves", w.leaves()));
         }
 
+        // the leaderboard race's real days (T-710): RuneSync XP from the hub's ledger, clan points from the awards. Only active members who
+        // may be ranked race: not a former member, not an old name, not a hub row under an alt's name, not someone hidden (by choice or default)
+        LocalDate today = now.toLocalDate();
+        Set<String> racers = ranked.stream().map(m -> m.rsn().toLowerCase()).collect(java.util.stream.Collectors.toSet());
+        java.util.function.Predicate<String> racing = rsn -> rsn != null && racers.contains(rsn.toLowerCase());
+        PointsMonth month30 = pointsMonth(stats.pointsByDay(guildId, today.minusDays(RACE_DAYS - 1)), today, racing, 10);
+        DataObject xpRace = pluginFeed == null ? null : pluginFeed.xpRace(guildId, racing);
+        DataObject race = DataObject.empty();
+        if (xpRace != null) race.put("xp", xpRace);
+        if (month30.race() != null) race.put("points", month30.race());
+
         Map<Integer, List<SiteStatsRepository.SkillLeader>> bySkill = new TreeMap<>();
         stats.skillLeaders(guildId, 12).stream().filter(l -> shown(hiddenBoards, l.rsn())).forEach(l -> bySkill.computeIfAbsent(l.skillId(), k -> new ArrayList<>()).add(l));
         DataArray skills = DataArray.empty();
@@ -599,7 +613,46 @@ public class SiteApi {
                 .put("topXp", topBy(ranked, MemberRow::totalXp, 10))
                 .put("topKills", topBy(ranked, MemberRow::kills, 10))
                 .put("topLevel", topBy(ranked, m -> m.totalLevel() == null ? 0 : m.totalLevel(), 10))
-                .put("topPoints", topBy(ranked, MemberRow::points, 10));
+                .put("topPoints", topBy(ranked, MemberRow::points, 10))
+                .put("topPointsMonth", month30.top())
+                .put("race", race);
+    }
+
+    /** Days in the leaderboard race's month (T-710): the last 30 UTC days, today included, as the hub's race route counts them. */
+    static final int RACE_DAYS = 30;
+
+    /** The month of clan points for the leaderboard race: the top members by points earned, and their running totals per day (null: nobody). */
+    record PointsMonth(DataArray top, DataObject race) {}
+
+    /**
+     * Clan points earned per member over the {@link #RACE_DAYS} days ending {@code today} (UTC), from the day rows: the top {@code limit} by
+     * points earned (only names {@code racing} lets in: active members who may be ranked; ties by name), and for them each day's running total.
+     */
+    static PointsMonth pointsMonth(List<SiteStatsRepository.PointsDay> rows, LocalDate today, java.util.function.Predicate<String> racing, int limit) {
+        LocalDate first = today.minusDays(RACE_DAYS - 1);
+        Map<String, String> names = new java.util.HashMap<>();
+        Map<String, long[]> byMember = new java.util.HashMap<>();
+        for (SiteStatsRepository.PointsDay row : rows) {
+            if (row.day().isBefore(first) || row.day().isAfter(today) || !racing.test(row.rsn())) continue;
+            String key = row.rsn().toLowerCase();
+            names.putIfAbsent(key, row.rsn());
+            byMember.computeIfAbsent(key, k -> new long[RACE_DAYS])[(int) (row.day().toEpochDay() - first.toEpochDay())] += row.points();
+        }
+        List<String> order = byMember.entrySet().stream().filter(e -> java.util.Arrays.stream(e.getValue()).sum() > 0)
+                .sorted(Comparator.comparingLong((Map.Entry<String, long[]> e) -> -java.util.Arrays.stream(e.getValue()).sum()).thenComparing(Map.Entry::getKey))
+                .limit(limit).map(Map.Entry::getKey).toList();
+        DataArray top = DataArray.empty();
+        DataArray raceRows = DataArray.empty();
+        for (String key : order) {
+            long running = 0;
+            DataArray values = DataArray.empty();
+            for (long day : byMember.get(key)) values.add(running += day);
+            top.add(DataObject.empty().put("rsn", names.get(key)).put("value", running));
+            raceRows.add(DataObject.empty().put("rsn", names.get(key)).put("values", values));
+        }
+        DataArray days = DataArray.empty();
+        for (int i = 0; i < RACE_DAYS; i++) days.add(first.plusDays(i).toString());
+        return new PointsMonth(top, order.isEmpty() ? null : DataObject.empty().put("days", days).put("rows", raceRows));
     }
 
     // ---------- one member's profile ----------

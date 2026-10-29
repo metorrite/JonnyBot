@@ -143,4 +143,21 @@ class ClanSitePluginFeedTest {
         when(hub.enabled()).thenReturn(false);
         assertFalse(new ClanSitePluginFeed(hub, profiles(null)).xpActivity(GUILD).getBoolean("available"), "not connected to the hub");
     }
+
+    @Test
+    void theRaceReadsTheHubAndLeavesItAloneForAWhileAfterItFails() {
+        RuneClansHubClient hub = mock(RuneClansHubClient.class);
+        when(hub.enabled()).thenReturn(true);
+        DataObject race = DataObject.empty().put("days", DataArray.empty().add("2026-10-27").add("2026-10-28"))
+                .put("players", DataArray.empty().add(DataObject.empty().put("rsn", "Zezima").put("cumulative", DataArray.empty().add(5).add(9))));
+        when(hub.guildXpRace(GUILD)).thenReturn(new RuneClansHubClient.Read(new RuneClansHubClient.Answer(200, race), false, false));
+        ClanSitePluginFeed feed = new ClanSitePluginFeed(hub, profiles(null));
+        assertEquals("Zezima", feed.xpRace(GUILD, rsn -> true).getArray("rows").getObject(0).getString("rsn"));
+
+        long other = GUILD + 1;
+        when(hub.guildXpRace(other)).thenReturn(null); // down, or an older hub without the route
+        assertNull(feed.xpRace(other, rsn -> true));
+        assertNull(feed.xpRace(other, rsn -> true));
+        verify(hub, times(1)).guildXpRace(other);
+    }
 }
