@@ -39,7 +39,7 @@ class SkillWeekRepositoryDatabaseTest {
     @AfterEach
     void cleanUp() throws Exception {
         try (Connection c = supplier.getConnection()) {
-            for (String table : List.of("skill_week", "skill_week_settings")) {
+            for (String table : List.of("skill_week", "skill_week_settings", "skill_week_vote", "skill_week_enrolled", "skill_week_opt_out")) {
                 try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings." + table + " WHERE guild_id = ?")) {
                     s.setLong(1, GUILD);
                     s.executeUpdate();
@@ -131,5 +131,44 @@ class SkillWeekRepositoryDatabaseTest {
         repository.save(GUILD, false, List.of(), ADMIN);
         assertTrue(repository.claim(GUILD, MONDAY).isEmpty());
         assertTrue(repository.week(GUILD, MONDAY).isEmpty());
+    }
+
+    @Test
+    void theOptionsAreKeptAndAVoteServerClaimsTheMembersChoice() {
+        SkillWeekRepository.Options options = new SkillWeekRepository.Options(SkillWeekRepository.Mode.VOTE, Long.parseLong("6".repeat(18)), true);
+        repository.save(GUILD, true, List.of(9, 15, 25), options, ADMIN);
+        assertEquals(options, repository.settings(GUILD).options());
+
+        long alice = 101, bob = 102, carol = 103;
+        repository.vote(GUILD, MONDAY, alice, 15);
+        repository.vote(GUILD, MONDAY, bob, 25);
+        repository.vote(GUILD, MONDAY, carol, 25);
+        repository.vote(GUILD, MONDAY, alice, 25); // changed her mind: still one vote each
+        assertEquals(java.util.Map.of(25, 3), repository.votes(GUILD, MONDAY));
+        assertEquals(OptionalInt.of(25), repository.vote(GUILD, MONDAY, alice));
+        assertEquals(OptionalInt.empty(), repository.vote(GUILD, MONDAY.plusSeconds(7 * 86_400), alice), "a vote is for one week");
+
+        assertEquals(OptionalInt.of(25), repository.claim(GUILD, MONDAY));
+        assertEquals(1, repository.settings(GUILD).position(), "the rota still moves on one, for ties and weeks nobody voted in");
+        // back to the rota: the options go back to off unless sent
+        repository.save(GUILD, true, List.of(9, 15, 25), ADMIN);
+        assertEquals(SkillWeekRepository.Options.OFF, repository.settings(GUILD).options());
+    }
+
+    @Test
+    void aMemberIsAutoEnrolledInAWeekOnce() {
+        assertTrue(repository.markEnrolled(GUILD, MONDAY, 101));
+        assertFalse(repository.markEnrolled(GUILD, MONDAY, 101));
+        assertTrue(repository.markEnrolled(GUILD, MONDAY.plusSeconds(7 * 86_400), 101), "next week is a new week");
+        assertEquals(java.util.Set.of(101L), repository.enrolled(GUILD, MONDAY));
+    }
+    @Test
+    void aMemberOptsOutOfAutoEnrolAndBackIn() {
+        assertEquals(java.util.Set.of(), repository.optedOut(GUILD));
+        repository.setOptOut(GUILD, 101, true);
+        repository.setOptOut(GUILD, 101, true);
+        assertEquals(java.util.Set.of(101L), repository.optedOut(GUILD));
+        repository.setOptOut(GUILD, 101, false);
+        assertEquals(java.util.Set.of(), repository.optedOut(GUILD));
     }
 }
