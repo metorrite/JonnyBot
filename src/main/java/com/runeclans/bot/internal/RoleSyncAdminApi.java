@@ -57,7 +57,12 @@ public class RoleSyncAdminApi implements AdminRouteExtension {
     }
 
     DataObject status(Guild guild) {
-        Progress p = backfill.progress(guild.getIdLong());
+        Progress p;
+        try {
+            p = backfill.progress(guild.getIdLong());
+        } catch (IllegalStateException e) {
+            throw new ApiError(503, "The bot could not reach its database just now. Try again in a moment.");
+        }
         DataObject json = DataObject.empty().put("max", RoleSyncBackfill.MAX_PER_RUN);
         json.put("progress", p == null ? null : DataObject.empty().put("total", p.total()).put("done", p.done()).put("failed", p.failed()).put("running", p.running()));
         return json;
