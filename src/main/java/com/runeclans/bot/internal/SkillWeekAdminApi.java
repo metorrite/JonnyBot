@@ -47,10 +47,12 @@ public class SkillWeekAdminApi implements AdminRouteExtension {
         if (method.equals("PUT")) {
             DataObject sent = body.get();
             Long channel = channelOf(sent);
-            if (channel != null) {
+            // checked only for a new channel: one the bot later lost the right to post in never blocks saving anything else (or turning it off)
+            if (channel != null && !channel.equals(savedChannel(guild.getIdLong()))) {
                 var target = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channel);
                 if (target == null) throw new ApiError(400, "Choose a channel of this server for the announcements.");
-                if (!guild.getSelfMember().hasPermission(target, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND)) {
+                // canTalk, as the announcement job checks (threads need their own send permission, not MESSAGE_SEND)
+                if (!target.canTalk()) {
                     throw new ApiError(400, "The bot needs to see and send messages in #" + target.getName() + " to announce the week there.");
                 }
             }
@@ -58,6 +60,12 @@ public class SkillWeekAdminApi implements AdminRouteExtension {
         }
         AdminRouteExtension.requireMethod(method, "GET");
         return overview(guild.getIdLong());
+    }
+
+    /** The announcement channel saved now, or null for none. */
+    private Long savedChannel(long guildId) {
+        SkillWeekRepository.Settings saved = repository.settings(guildId);
+        return saved == null || saved.options() == null ? null : saved.options().announceChannelId();
     }
 
     /** The announcement channel sent, or null for none; a value that isn't a Discord id is refused. */

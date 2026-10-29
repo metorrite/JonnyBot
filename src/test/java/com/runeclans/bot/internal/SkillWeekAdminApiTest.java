@@ -70,27 +70,42 @@ class SkillWeekAdminApiTest {
     void theAnnouncementChannelMustBeOneTheBotCanPostIn() {
         net.dv8tion.jda.api.entities.Guild guild = Mockito.mock(net.dv8tion.jda.api.entities.Guild.class);
         net.dv8tion.jda.api.entities.Member actor = Mockito.mock(net.dv8tion.jda.api.entities.Member.class);
-        net.dv8tion.jda.api.entities.SelfMember self = Mockito.mock(net.dv8tion.jda.api.entities.SelfMember.class);
         var channel = Mockito.mock(net.dv8tion.jda.api.entities.channel.concrete.TextChannel.class);
         long channelId = Long.parseLong("6".repeat(18));
         when(guild.getIdLong()).thenReturn(GUILD);
         when(actor.getIdLong()).thenReturn(ADMIN);
-        when(guild.getSelfMember()).thenReturn(self);
         when(channel.getName()).thenReturn("announcements");
         when(guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId)).thenReturn(channel);
         DataObject sent = body(false, 9).put("announceChannelId", String.valueOf(channelId));
 
-        when(self.hasPermission(channel, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND)).thenReturn(false);
+        when(repository.settings(GUILD)).thenReturn(SkillWeekRepository.Settings.OFF);
+        when(channel.canTalk()).thenReturn(false);
         TicketAdminApi.ApiError cant = assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "PUT", new String[]{"skill-week"}, () -> sent));
         assertEquals(400, cant.status);
         assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "PUT", new String[]{"skill-week"},
                 () -> body(false, 9).put("announceChannelId", "1".repeat(18))), "not a channel of this server");
         verify(repository, never()).save(anyLong(), anyBoolean(), any(), any(), anyLong());
 
-        when(self.hasPermission(channel, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND)).thenReturn(true);
+        when(channel.canTalk()).thenReturn(true);
         when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
         api.route(guild, actor, "PUT", new String[]{"skill-week"}, () -> sent);
         verify(repository).save(GUILD, false, List.of(9),
                 new SkillWeekRepository.Options(SkillWeekRepository.Mode.ROTA, channelId, false), ADMIN);
+    }
+
+    @Test
+    void aSavedChannelTheBotLostDoesNotBlockOtherChanges() {
+        net.dv8tion.jda.api.entities.Guild guild = Mockito.mock(net.dv8tion.jda.api.entities.Guild.class);
+        net.dv8tion.jda.api.entities.Member actor = Mockito.mock(net.dv8tion.jda.api.entities.Member.class);
+        long channelId = Long.parseLong("6".repeat(18));
+        when(guild.getIdLong()).thenReturn(GUILD);
+        when(actor.getIdLong()).thenReturn(ADMIN);
+        SkillWeekRepository.Options saved = new SkillWeekRepository.Options(SkillWeekRepository.Mode.ROTA, channelId, false);
+        when(repository.settings(GUILD)).thenReturn(new SkillWeekRepository.Settings(true, List.of(9), 0, ADMIN, saved));
+        when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
+
+        api.route(guild, actor, "PUT", new String[]{"skill-week"}, () -> body(false, 9).put("announceChannelId", String.valueOf(channelId)));
+        verify(repository).save(GUILD, false, List.of(9), saved, ADMIN);
+        verify(guild, never()).getChannelById(eq(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class), anyLong());
     }
 }

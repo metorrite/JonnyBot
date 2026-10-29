@@ -1,6 +1,7 @@
 package com.runeclans.bot.events;
 
 import com.runeclans.bot.alerts.AutoPostRouter;
+import com.runeclans.bot.discord.DiscordLookups;
 import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.discord.jobs.DiscordOutbox;
 import com.runeclans.bot.events.EventRepository.Event;
@@ -52,6 +53,10 @@ import java.util.function.LongPredicate;
 @BService
 public class SkillWeekService {
     private static final Logger log = LoggerFactory.getLogger(SkillWeekService.class);
+    /** Discord answers too slow for one server's auto-enrol pass before it stops and leaves the rest to the next pass (10 minutes later). */
+    static final int AUTO_SLOW_LIMIT = 3;
+    /** Failed joins for one member in one week before auto-enrol gives up on them for that week. */
+    static final int AUTO_JOIN_TRIES = 3;
     /** How many places the website's standings show at most. */
     public static final int MAX_SHOWN = 25;
     /** A week claimed this long ago that still has no competition was left by a pass that died (a restart): it is given back. */
@@ -69,6 +74,8 @@ public class SkillWeekService {
     private final ScheduledExecutorService executor = BotScheduler.lane("skill-of-the-week");
     private Clock clock = Clock.systemUTC();
     private volatile JDA jda;
+    /** Failed auto-enrol joins this week, by "guild:week:user" (gone once they join or auto-enrol gives up). */
+    private final Map<String, Integer> joinFailures = new java.util.concurrent.ConcurrentHashMap<>();
 
     public SkillWeekService(SkillWeekRepository weeks, EventService service, EventRepository repository, PluginXpTracker tracker, RuneClansHubClient hub, PlayerLinkService links,
                             MemberProfileRepository profiles, PluginVisibilityRepository plugins, DiscordOutbox outbox) {
@@ -88,6 +95,12 @@ public class SkillWeekService {
         if (!hub.enabled()) return;
         jda = event.getJda();
         executor.scheduleWithFixedDelay(this::sweep, 2, 10, TimeUnit.MINUTES);
+    }
+
+    /** For tests: the Discord connection the sweep would get when the bot is ready. */
+    SkillWeekService withJda(JDA jda) {
+        this.jda = jda;
+        return this;
     }
 
     /** For tests. */
@@ -322,6 +335,7 @@ public class SkillWeekService {
         java.time.LocalDate today = now.atZone(java.time.ZoneOffset.UTC).toLocalDate();
         java.time.LocalDate first = start.atZone(java.time.ZoneOffset.UTC).toLocalDate();
         int added = 0;
+        int slow = 0;
         for (java.time.LocalDate day : today.isAfter(first) ? List.of(today.minusDays(1), today) : List.of(today)) {
             RuneClansHubClient.Answer answer = hub.xpGainers(guildId, day);
             if (answer == null || !answer.ok() || answer.json() == null) return added; // the hub is down or its ledger is off: next pass
@@ -334,8 +348,18 @@ public class SkillWeekService {
                     continue; // their grant doesn't share who they are on Discord
                 }
                 if (playing.contains(user) || already.contains(user)) continue;
-                if (guild != null && !inServer(guild, user)) continue; // not a member of this server
+                if (guild != null) {
+                    // the shared member lookups: 1.5 s at most, one question per member at a time, "not a member" remembered a minute
+                    DiscordLookups.Outcome found = DiscordLookups.member(guild, user, DiscordLookups.BUDGET).outcome();
+                    if (found == DiscordLookups.Outcome.ABSENT) continue; // not a member of this server
+                    if (found == DiscordLookups.Outcome.SLOW) {
+                        // Discord is slow: never entered on a guess, and after a few the rest wait for the next pass
+                        if (++slow >= AUTO_SLOW_LIMIT) return finish(guildId, added);
+                        continue;
+                    }
+                }
                 already.add(user);
+                String tries = guildId + ":" + start + ":" + user;
                 try {
                     service.join(guildId, eventId, guildId, user, null, true, null);
                     playing.add(user);
@@ -344,25 +368,28 @@ public class SkillWeekService {
                     // refused for a reason of its own (e.g. a full event): not tried again this week
                     log.debug("Skill of the week in {}: {} not auto-enrolled: {}", guildId, user, e.getMessage());
                 } catch (RuntimeException e) {
-                    // the join itself failed (the database): left unmarked, so the next pass tries again
-                    log.warn("Skill of the week in {}: could not auto-enrol {}", guildId, user, e);
-                    continue;
+                    // the join itself failed (the database): left unmarked, so the next pass tries again, a few times
+                    int failed = joinFailures.merge(tries, 1, Integer::sum);
+                    if (failed == 1) log.warn("Skill of the week in {}: could not auto-enrol {}", guildId, user, e);
+                    else log.warn("Skill of the week in {}: could not auto-enrol {} (try {}): {}", guildId, user, failed, e.toString());
+                    if (failed < AUTO_JOIN_TRIES) continue;
+                    log.warn("Skill of the week in {}: gave up auto-enrolling {} this week", guildId, user);
                 }
-                weeks.markEnrolled(guildId, start, user);
+                joinFailures.remove(tries);
+                try {
+                    weeks.markEnrolled(guildId, start, user);
+                } catch (RuntimeException e) {
+                    // the join stands (they're playing, so never joined twice); the next pass simply looks again
+                    log.warn("Skill of the week in {}: could not note {} as auto-enrolled", guildId, user, e);
+                }
             }
         }
-        if (added > 0) log.info("Skill of the week in {}: {} member(s) auto-enrolled", guildId, added);
-        return added;
+        return finish(guildId, added);
     }
 
-    /** Whether the user is a member of the server: from the member cache, else asked of Discord (at most 5 s; this runs in the sweep). */
-    private static boolean inServer(net.dv8tion.jda.api.entities.Guild guild, long user) {
-        if (guild.getMemberById(user) != null) return true;
-        try {
-            return guild.retrieveMemberById(user).timeout(5, TimeUnit.SECONDS).complete() != null;
-        } catch (RuntimeException e) {
-            return false; // not a member (Unknown Member), or Discord didn't answer: tried again on the next pass
-        }
+    private static int finish(long guildId, int added) {
+        if (added > 0) log.info("Skill of the week in {}: {} member(s) auto-enrolled", guildId, added);
+        return added;
     }
 
     /** The member's own auto-enrol choice for the clan website: whether the server enters members by themselves, and whether they opted out. */

@@ -277,6 +277,61 @@ class SkillWeekOptionsTest {
     }
 
     @Test
+    void onlyMembersDiscordConfirmsAreEnteredNeverOnAGuess() {
+        autoEnrolWeek();
+        when(weeks.optedOut(GUILD)).thenReturn(new java.util.HashSet<>());
+        net.dv8tion.jda.api.JDA jda = Mockito.mock(net.dv8tion.jda.api.JDA.class);
+        net.dv8tion.jda.api.entities.Guild guild = Mockito.mock(net.dv8tion.jda.api.entities.Guild.class);
+        service.withJda(jda);
+        try (var shards = Mockito.mockStatic(com.runeclans.bot.discord.Shards.class);
+             var lookups = Mockito.mockStatic(com.runeclans.bot.discord.DiscordLookups.class)) {
+            shards.when(() -> com.runeclans.bot.discord.Shards.guild(jda, GUILD)).thenReturn(guild);
+            lookups.when(() -> com.runeclans.bot.discord.DiscordLookups.member(eq(guild), eq(ALICE), any())).thenReturn(lookup(com.runeclans.bot.discord.DiscordLookups.Outcome.ABSENT));
+            lookups.when(() -> com.runeclans.bot.discord.DiscordLookups.member(eq(guild), eq(BOB), any())).thenReturn(lookup(com.runeclans.bot.discord.DiscordLookups.Outcome.FOUND));
+            assertEquals(1, service.autoEnrol(GUILD, NOW));
+            verify(events).join(GUILD, 42L, GUILD, BOB, null, true, null);
+            verify(events, never()).join(anyLong(), anyLong(), anyLong(), eq(ALICE), any(), anyBoolean(), any());
+            verify(weeks, never()).markEnrolled(GUILD, MONDAY, ALICE);
+
+            // Discord too slow to say: nobody is entered or noted, so the next pass asks again
+            Mockito.clearInvocations(events, weeks);
+            lookups.when(() -> com.runeclans.bot.discord.DiscordLookups.member(eq(guild), anyLong(), any())).thenReturn(lookup(com.runeclans.bot.discord.DiscordLookups.Outcome.SLOW));
+            assertEquals(0, service.autoEnrol(GUILD, NOW));
+            verify(events, never()).join(anyLong(), anyLong(), anyLong(), anyLong(), any(), anyBoolean(), any());
+            verify(weeks, never()).markEnrolled(anyLong(), any(), anyLong());
+        }
+    }
+
+    private static com.runeclans.bot.discord.DiscordLookups.MemberLookup lookup(com.runeclans.bot.discord.DiscordLookups.Outcome outcome) {
+        return new com.runeclans.bot.discord.DiscordLookups.MemberLookup(outcome,
+                outcome == com.runeclans.bot.discord.DiscordLookups.Outcome.FOUND ? Mockito.mock(net.dv8tion.jda.api.entities.Member.class) : null);
+    }
+
+    @Test
+    void aJoinThatKeepsFailingIsGivenUpForTheWeekAfterAFewTries() {
+        autoEnrolWeek();
+        when(weeks.optedOut(GUILD)).thenReturn(new java.util.HashSet<>());
+        when(weeks.enrolled(GUILD, MONDAY)).thenAnswer(i -> new java.util.HashSet<>()); // a fresh read each pass, as the database gives
+        Mockito.doThrow(new RuntimeException("always fails")).when(events).join(GUILD, 42L, GUILD, ALICE, null, true, null);
+        for (int pass = 1; pass < SkillWeekService.AUTO_JOIN_TRIES; pass++) {
+            service.autoEnrol(GUILD, NOW);
+            verify(weeks, never()).markEnrolled(GUILD, MONDAY, ALICE);
+        }
+        service.autoEnrol(GUILD, NOW);
+        verify(weeks).markEnrolled(GUILD, MONDAY, ALICE);
+    }
+
+    @Test
+    void aFailedNoteDoesNotStopTheRestOfThePass() {
+        autoEnrolWeek();
+        when(weeks.optedOut(GUILD)).thenReturn(new java.util.HashSet<>());
+        when(weeks.markEnrolled(GUILD, MONDAY, ALICE)).thenThrow(new RuntimeException("database down"));
+        assertEquals(2, service.autoEnrol(GUILD, NOW));
+        verify(events).join(GUILD, 42L, GUILD, BOB, null, true, null);
+        verify(weeks).markEnrolled(GUILD, MONDAY, BOB);
+    }
+
+    @Test
     void aMemberChoosesToBeLeftOut() {
         when(weeks.settings(GUILD)).thenReturn(settings(new Options(Mode.ROTA, null, true)));
         when(weeks.optedOut(GUILD)).thenReturn(Set.of(ALICE));
