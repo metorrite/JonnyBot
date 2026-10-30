@@ -76,6 +76,17 @@ public class LeagueHub {
         return read == null ? null : read.answer();
     }
 
+    /**
+     * {@code GET /v1/leagues/{id}}: the league's public page (clans, rounds with results, standings), which any key may read; null when off,
+     * when the hub can't be reached, or when the league isn't one the bot may see.
+     */
+    public DataObject league(String leagueId) {
+        if (!enabled() || leagueId == null || !leagueId.matches("[0-9a-fA-F-]{36}")) return null;
+        RuneClansHubClient.Read read = reader.apply("/v1/leagues/" + leagueId);
+        if (read == null || read.answer() == null || !read.answer().ok()) return null;
+        return read.answer().json();
+    }
+
     /** The hub clan behind a Discord server, from its site record ({@code GET /v1/guilds/{guildId}/site}); empty when there is none or the hub can't say. */
     public Optional<String> clanIdOf(long guildId) {
         if (!enabled()) return Optional.empty();
