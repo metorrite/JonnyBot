@@ -13,7 +13,10 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 
 import java.util.EnumSet;
 
-/** Posts one league message in the channel a server picked (T-760): an outbox job, so it never pings anyone and never runs twice by itself. */
+/**
+ * Posts one league message in the channel a server picked (T-760): an outbox job, so it never pings anyone, never runs twice by itself,
+ * and is skipped while the bot is not live. The text carries names other clans typed, so link embeds are off as well as pings.
+ */
 @BService
 public class LeaguePostJobs implements DiscordJobHandler {
     public static final String KIND = "league.post";
@@ -45,7 +48,7 @@ public class LeaguePostJobs implements DiscordJobHandler {
         if (channel == null) throw new DiscordJobs.Refused("The league channel no longer exists.");
         if (!channel.canTalk()) throw new DiscordJobs.Refused("The bot can't post in #" + channel.getName() + ".");
         if (text.length() > MAX_TEXT) text = text.substring(0, MAX_TEXT);
-        Message sent = DiscordJobs.send(channel.sendMessage(text).setAllowedMentions(NO_PINGS));
+        Message sent = DiscordJobs.send(channel.sendMessage(text).setAllowedMentions(NO_PINGS).setSuppressEmbeds(true));
         return DataObject.empty().put("messageId", sent.getId());
     }
 }

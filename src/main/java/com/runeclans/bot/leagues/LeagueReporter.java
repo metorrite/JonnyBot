@@ -24,7 +24,9 @@ import java.util.concurrent.ScheduledExecutorService;
  * Reports a league round's event to the hub (T-759, RuneClan docs/ALLIANCE-LEAGUE.md 10): when a clan-vs-clan event attached to a round
  * reaches DONE, every participating clan's score (or player count, for a {@code participation} round) goes to the hub through its write
  * queue and lands on the round's table as proposed by the host clan; a cancelled event is detached, so the round waits for a result by
- * hand. Everything runs on its own lane, never on the event engine's thread. Off (the hub client off): nothing here runs.
+ * hand. Everything runs on its own lane, never on the event engine's thread. Off (the hub client off): nothing here runs. The report
+ * goes through the hub write queue, so it is lost only when that queue is full or the saved write expires before the hub answers, or
+ * when the process restarts between the event's stage change and the report; the host clan then enters the result by hand.
  */
 @BService
 public class LeagueReporter {

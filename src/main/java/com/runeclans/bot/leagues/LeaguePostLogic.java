@@ -1,5 +1,6 @@
 package com.runeclans.bot.leagues;
 
+import net.dv8tion.jda.api.utils.MarkdownSanitizer;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
@@ -28,7 +29,7 @@ public final class LeaguePostLogic {
         if (data == null) return Optional.empty();
         String leagueId = data.getString("leagueId", "");
         if (!leagueId.matches("[0-9a-fA-F-]{36}")) return Optional.empty();
-        String name = data.getString("name", "");
+        String name = plain(data.getString("name", ""));
         if (name.isBlank()) name = "the league";
         String event = data.getString("event", "");
         int number = data.getInt("number", 0);
@@ -69,6 +70,16 @@ public final class LeaguePostLogic {
                 return Optional.empty();
             }
         }
+    }
+
+    /**
+     * A name from another clan as Discord may show it: markdown escaped (bold, spoilers, quotes, code), masked links' brackets escaped and
+     * pings defanged, so a league, clan or round called {@code [Claim your prize](https://evil.example)} or {@code **x**} is shown as typed.
+     * The hub keeps names to plain words, and this holds here whatever the hub lets through.
+     */
+    public static String plain(String name) {
+        if (name == null) return "";
+        return MarkdownSanitizer.escape(name).replace("[", "\\[").replace("]", "\\]").replace("@", "@\u200B");
     }
 
     /** Whether the hub's answer for a server ({@code GET /v1/guilds/{g}/leagues}) lists this league: only then is the post for that server. */

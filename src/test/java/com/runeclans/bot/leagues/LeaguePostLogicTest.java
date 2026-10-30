@@ -21,6 +21,20 @@ class LeaguePostLogicTest {
     }
 
     @Test
+    void aNameAnotherClanTypedIsShownAsTypedNeverAsMarkdown() {
+        DataObject entry = entry("proposed");
+        entry.getObject("data").put("name", "[Claim your prize](https://evil.example) **now** ||@everyone||");
+        String name = (String) LeaguePostLogic.plan("league.changed", entry).orElseThrow().args()[0];
+        assertFalse(name.contains("[Claim your prize](https://evil.example)"), name);
+        assertFalse(name.contains("**now**"), name);
+        assertFalse(name.contains("@everyone"), name);
+        // JDA escapes the markdown tokens (a spoiler's pair as one), the brackets keep a masked link from forming, the ping is defanged
+        assertEquals("\\[Claim your prize\\](https://evil.example) \\*\\*now\\*\\* \\||@\u200Beveryone\\||", name);
+        assertEquals("Winter cup", LeaguePostLogic.plain("Winter cup"), "a plain name is left as it is");
+        assertEquals("", LeaguePostLogic.plain(null));
+    }
+
+    @Test
     void roundsResultsTermsAndTheLeagueItselfPostAndNoiseDoesNot() {
         LeaguePostLogic.Plan started = LeaguePostLogic.plan("league.round", entry("started", "number", 2)).orElseThrow();
         assertEquals("league.post.round_started", started.key());

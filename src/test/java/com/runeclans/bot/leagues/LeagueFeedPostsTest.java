@@ -88,6 +88,16 @@ class LeagueFeedPostsTest {
     }
 
     @Test
+    void aHubThatIsOffQueuesNothingAndAsksNobody() {
+        BotConfig config = mock(BotConfig.class);
+        when(config.getClanSitesUrl()).thenReturn("https://runeclans.com");
+        LeagueFeedPosts off = new LeagueFeedPosts(LeagueHub.off(), store, outbox, config);
+        off.onHubFeed("league.round", entry());
+        verify(store, never()).channels();
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), anyString(), any());
+    }
+
+    @Test
     void nothingIsQueuedForNoiseOrWhenNobodyPickedAChannel() {
         when(store.channels()).thenReturn(Map.of());
         posts.onHubFeed("league.round", entry());

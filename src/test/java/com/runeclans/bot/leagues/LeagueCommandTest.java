@@ -40,6 +40,19 @@ class LeagueCommandTest {
     }
 
     @Test
+    void namesFromOtherClansAreShownAsTypedNeverAsMarkdown() {
+        DataArray rounds = DataArray.empty().add(DataObject.empty().put("number", 1).put("name", "[Boss night](https://evil.example)").put("status", "final"));
+        guild(200, DataObject.empty().put("leagues", DataArray.empty().add(DataObject.empty().put("id", LEAGUE).put("name", "**Winter** cup").put("status", "running").put("rounds", rounds))));
+        answers.put("/v1/leagues/" + LEAGUE, new RuneClansHubClient.Read(new RuneClansHubClient.Answer(200, DataObject.empty().put("standings",
+                DataArray.empty().add(DataObject.empty().put("rank", 1).put("name", "||Alpha||").put("points", 7.0)))), false, false));
+        String[] lines = LeagueCommand.reply(hub, GUILD, false, null, TEXT).lines();
+        assertEquals("league.heading[\\*\\*Winter\\*\\* cup, running]", lines[0]);
+        assertEquals("league.round[1, \\[Boss night\\](https://evil.example), final]", lines[1]);
+        lines = LeagueCommand.reply(hub, GUILD, true, null, TEXT).lines();
+        assertEquals("league.standing[1, \\||Alpha\\||, 7]", lines[1]);
+    }
+
+    @Test
     void roundsComeFromTheGuildAnswerAndStandingsFromThePublicPage() {
         DataArray rounds = DataArray.empty().add(DataObject.empty().put("number", 1).put("name", "Boss night").put("status", "final"))
                 .add(DataObject.empty().put("number", 2).put("name", "XP week").put("status", "running"));

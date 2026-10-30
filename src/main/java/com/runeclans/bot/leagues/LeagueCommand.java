@@ -23,7 +23,8 @@ import java.util.function.Function;
 
 /**
  * {@code /league standings} and {@code /league rounds} (T-760): the leagues this server's clan is in, read from the hub, answered to the
- * member alone. Anyone in the server may ask: the public page on the website shows the same.
+ * member alone. Anyone in the server may ask: the public page on the website shows the same. Names come from other clans, so they go
+ * through {@link LeaguePostLogic#plain}.
  */
 @Command
 public class LeagueCommand {
@@ -75,7 +76,7 @@ public class LeagueCommand {
         for (int i = 0; i < Math.min(leagues.length(), MAX_LEAGUES); i++) {
             DataObject league = leagues.getObject(i);
             String id = league.getString("id", "");
-            String name = league.getString("name", "?");
+            String name = LeaguePostLogic.plain(league.getString("name", "?"));
             String status = league.getString("status", "");
             lines.add(text.apply("league.heading", new Object[] {name, status}));
             if (standings) lines.addAll(standingLines(hub.league(id), text));
@@ -94,7 +95,7 @@ public class LeagueCommand {
         List<String> out = new ArrayList<>();
         for (int i = 0; i < Math.min(standings.length(), MAX_ROWS); i++) {
             DataObject s = standings.getObject(i);
-            out.add(text.apply("league.standing", new Object[] {s.getInt("rank", s.getInt("placing", i + 1)), s.getString("name", "?"), trim(s.getDouble("points", 0))}));
+            out.add(text.apply("league.standing", new Object[] {s.getInt("rank", s.getInt("placing", i + 1)), LeaguePostLogic.plain(s.getString("name", "?")), trim(s.getDouble("points", 0))}));
         }
         return out;
     }
@@ -105,7 +106,7 @@ public class LeagueCommand {
         List<String> out = new ArrayList<>();
         for (int i = 0; i < Math.min(rounds.length(), MAX_ROWS); i++) {
             DataObject r = rounds.getObject(i);
-            out.add(text.apply("league.round", new Object[] {r.getInt("number", i + 1), r.getString("name", "?"), r.getString("status", "")}));
+            out.add(text.apply("league.round", new Object[] {r.getInt("number", i + 1), LeaguePostLogic.plain(r.getString("name", "?")), r.getString("status", "")}));
         }
         return out;
     }

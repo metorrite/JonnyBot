@@ -19,7 +19,9 @@ import java.util.concurrent.ScheduledExecutorService;
  * Turns the hub's league feed into channel posts (T-760): for every server that picked a league channel ({@link LeagueDiscordStore}) and whose
  * clan is in the league (the hub's {@code GET /v1/guilds/{g}/leagues}, cached), one outbox job per change ({@link LeaguePostJobs}), so the
  * post runs in the process that holds the server's shard, waits out Discord's rate limits and respects the dev-bot posting switch. A newer
- * change about the same round or version replaces one still waiting (the dedupe key).
+ * change about the same round or version replaces one still waiting (the dedupe key). A post that can't be queued (the outbox or the
+ * database away, the hub not answering for a server) is logged and lost, not retried: the feed has moved on, the posts are informational
+ * and the website shows the same.
  */
 @BService
 public class LeagueFeedPosts implements HubFeedListener {
