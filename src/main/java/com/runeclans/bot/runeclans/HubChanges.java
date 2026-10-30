@@ -33,6 +33,8 @@ final class HubChanges {
         int dropped = 0;
         if (kind.equals("access.changed") || kind.startsWith("access.")) dropped += cache.evictTag("access");
         if (kind.startsWith("site.") || kind.startsWith("community.") || kind.equals("feature.changed")) dropped += cache.evictTag("sites");
+        // a league, its terms, a round or a result moved (T-759): the server's league answers are read again
+        if (kind.startsWith("league.")) dropped += cache.evictTag("leagues");
         if (data != null && data.hasKey("item") && data.hasKey("id") && !data.isNull("item") && !data.isNull("id")) {
             dropped += cache.evictTag(tag(data.getString("item"), data.getString("id")));
         }
