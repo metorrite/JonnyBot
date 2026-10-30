@@ -37,8 +37,15 @@ public class HubSites {
     /** What the hub said about a server's site: {@code OFF} (the switch is off), {@code FOUND}, {@code NONE} (no site) or {@code UNKNOWN} (no answer). */
     public enum Status { OFF, FOUND, NONE, UNKNOWN }
 
-    /** A server's site on the hub: the hub's own site id, its address, whether it is published, and the server it is connected to. */
-    public record HubSite(String siteId, String slug, boolean published, long guildId) {}
+    /**
+     * A server's site on the hub: the hub's own site id, its address, whether it is published, the server it is connected to, and its
+     * community's id ({@code /community join}, T-732; null when the hub didn't say).
+     */
+    public record HubSite(String siteId, String slug, boolean published, long guildId, String communityId) {
+        public HubSite(String siteId, String slug, boolean published, long guildId) {
+            this(siteId, slug, published, guildId, null);
+        }
+    }
 
     public record Lookup(Status status, HubSite site) {
         static final Lookup OFF = new Lookup(Status.OFF, null);
@@ -166,7 +173,9 @@ public class HubSites {
         if (siteId.isEmpty() || siteId.length() > 64) return null;
         Long guild = snowflake(json.isNull("guildId") ? null : String.valueOf(json.opt("guildId").orElse(null)));
         String slug = json.isNull("slug") ? null : json.getString("slug", null);
-        return new HubSite(siteId, slug, json.getBoolean("published", false), guild == null ? askedGuild : guild);
+        String community = json.isNull("communityId") ? "" : json.getString("communityId", "").strip();
+        return new HubSite(siteId, slug, json.getBoolean("published", false), guild == null ? askedGuild : guild,
+                community.matches("[0-9a-fA-F-]{36}") ? community : null);
     }
 
     private static Long snowflake(String raw) {

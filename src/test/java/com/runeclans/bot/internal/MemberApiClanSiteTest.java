@@ -6,6 +6,7 @@ import com.runeclans.bot.commands.poll.PollService;
 import com.runeclans.bot.commands.runescape.RsInteractionListener;
 import com.runeclans.bot.commands.signup.SignupService;
 import com.runeclans.bot.internal.CommunitySettings.SiteMemberOptions;
+import com.runeclans.bot.member.HubMemberPrivacy;
 import com.runeclans.bot.member.MemberProfileRepository;
 import com.runeclans.bot.member.MemberProfileRepository.Profile;
 import com.runeclans.bot.permission.MemberAccess;
@@ -56,6 +57,11 @@ class MemberApiClanSiteTest {
     private com.runeclans.bot.discord.jobs.DiscordOutbox outbox;
     private Guild guild;
     private Member member;
+    private SkillWeekMemberApi skillWeek;
+    private HubMemberPrivacy hubPrivacy;
+    /** What the hub was sent (path, body), with the hub switch on; {@code hubDown} makes the hub throw. */
+    private final List<String[]> hubSent = new java.util.ArrayList<>();
+    private boolean hubDown;
 
     @BeforeEach
     void setUp() {
@@ -64,8 +70,17 @@ class MemberApiClanSiteTest {
         events = mock(MemberEventsApi.class);
         community = mock(CommunitySettings.class);
         outbox = mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class);
+        skillWeek = mock(SkillWeekMemberApi.class);
+        hubSent.clear();
+        hubDown = false;
+        hubPrivacy = HubMemberPrivacy.sendingTo((path, body) -> {
+            if (hubDown) throw new IllegalStateException("hub down");
+            hubSent.add(new String[]{path, body});
+            return new com.runeclans.bot.runeclans.RuneClansHubClient.Answer(200, net.dv8tion.jda.api.utils.data.DataObject.empty());
+        }, Runnable::run);
         api = new MemberApi(profiles, links, mock(PollService.class), mock(SignupService.class), mock(MemberAccess.class), mock(Debouncer.class), new SiteCache(), community,
-                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox);
+                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox, skillWeek,
+                hubPrivacy);
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(CLAN_GUILD);
@@ -124,6 +139,21 @@ class MemberApiClanSiteTest {
     }
 
     @Test
+    void skillOfTheWeeksAutoEnrolChoiceIsReadAndSavedForThatServer() throws Exception {
+        when(skillWeek.auto(guild, USER)).thenReturn(DataObject.empty().put("autoEnrol", true).put("optedOut", false));
+        when(skillWeek.setAuto(any(), anyLong(), any())).thenReturn(DataObject.empty().put("autoEnrol", true).put("optedOut", true));
+
+        Reply read = call("GET", "skill-week/auto", "userId=" + USER, null, true);
+        assertEquals(200, read.status());
+        assertEquals(false, read.body().getBoolean("optedOut"));
+
+        Reply saved = call("POST", "skill-week/auto", null, "{\"userId\":\"" + USER + "\",\"optedOut\":true}", true);
+        assertEquals(200, saved.status());
+        assertEquals(true, saved.body().getBoolean("optedOut"));
+        verify(skillWeek).setAuto(eq(guild), eq(USER), any());
+    }
+
+    @Test
     void whenDiscordHangsTheMemberCheckAnswers503NotAWrongNo() throws Exception {
         com.runeclans.bot.discord.DiscordLookups.forgetAll();
         try {
@@ -156,6 +186,37 @@ class MemberApiClanSiteTest {
         assertEquals(CLAN_GUILD, written.getValue().guildId(), "the row belongs to the clan site's server");
         assertEquals(USER, written.getValue().userId());
         assertTrue(written.getValue().hideFromLeaderboards());
+        assertEquals(1, hubSent.size(), "the hub's copy (T-750)");
+        assertEquals("/v1/guilds/" + CLAN_GUILD + "/member-privacy/members/" + USER, hubSent.get(0)[0]);
+        assertHub(0, true, false, false);
+    }
+
+    /** T-750: each toggle reaches the hub in its own field, all three as saved; the bot's save lands even when the hub call fails. */
+    @Test
+    void eachPrivacyToggleReachesTheHubAsSavedAndTheLocalSaveNeverWaitsOnIt() throws Exception {
+        java.util.concurrent.atomic.AtomicReference<Profile> stored = new java.util.concurrent.atomic.AtomicReference<>(Profile.defaults(CLAN_GUILD, USER));
+        when(profiles.getProfile(CLAN_GUILD, USER)).thenAnswer(i -> stored.get());
+        doAnswer(i -> {
+            stored.set(i.getArgument(0));
+            return null;
+        }).when(profiles).saveProfile(any());
+        assertEquals(200, call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"hideAdventureLog\":true}", true).status());
+        assertHub(0, false, true, false);
+        assertEquals(200, call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"hideAdventureLog\":false,\"hideDiscordLink\":true}", true).status());
+        assertHub(1, false, false, true);
+        hubDown = true;
+        Reply saved = call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"hideFromLeaderboards\":true}", true);
+        assertEquals(200, saved.status(), "the hub failing never fails the member's save");
+        assertTrue(stored.get().hideFromLeaderboards(), "saved in the bot");
+        assertTrue(stored.get().hideDiscordLink());
+        assertEquals(1, hubPrivacy.held(), "held for the hub's next round");
+    }
+
+    private void assertHub(int i, boolean leaderboards, boolean adventureLog, boolean discordLink) {
+        net.dv8tion.jda.api.utils.data.DataObject body = net.dv8tion.jda.api.utils.data.DataObject.fromJson(hubSent.get(i)[1]);
+        assertEquals(leaderboards, body.getBoolean("hideFromLeaderboards"), "hideFromLeaderboards");
+        assertEquals(adventureLog, body.getBoolean("hideAdventureLog"), "hideAdventureLog");
+        assertEquals(discordLink, body.getBoolean("hideDiscordLink"), "hideDiscordLink");
     }
 
     @Test
@@ -178,6 +239,7 @@ class MemberApiClanSiteTest {
 
         call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"bio\":\"Hi\"}", true);
         assertTrue(stored.get().hideRecap(), "a save that leaves it out keeps it");
+        assertTrue(hubSent.isEmpty(), "no privacy toggle named: nothing for the hub");
         call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"hideRecap\":false}", true);
         assertFalse(stored.get().hideRecap(), "and it can be turned back on for the clan");
     }

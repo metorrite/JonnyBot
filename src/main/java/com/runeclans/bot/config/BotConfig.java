@@ -447,6 +447,20 @@ public class BotConfig {
         return parseShardCount(envOrDotenv("SHARD_COUNT"));
     }
 
+    /**
+     * The gateway process's internal API on the private network ({@code GATEWAY_INTERNAL_URL}, e.g. {@code http://bot-gateway.railway.internal:8081};
+     * T-746). Only the api role reads it: routes that need servers or members are passed on there. Null when unset.
+     */
+    public String getGatewayInternalUrl() {
+        String raw = envOrDotenv("GATEWAY_INTERNAL_URL");
+        return raw == null || raw.isBlank() ? null : raw.strip();
+    }
+
+    /** Which part of the bot this process runs ({@code BOT_ROLE}: all, gateway or api; default all, T-670). See {@link BotRole}. */
+    public BotRole getRole() {
+        return BotRole.parse(envOrDotenv("BOT_ROLE"));
+    }
+
     /** {@code SHARD_COUNT}'s value as a shard total: unset, not a number or below 1 is 1. */
     static int parseShardCount(String raw) {
         if (raw == null || raw.isBlank()) return 1;
@@ -520,6 +534,14 @@ public class BotConfig {
      */
     public long getRunescapeLinkedPollWindowMinutes() {
         return positiveMinutes("RUNESCAPE_LINKED_POLL_WINDOW_MINUTES", 480);
+    }
+
+    /**
+     * The window for the community tier (T-736): RuneLink-linked players the hub places in a community site and in no registered clan.
+     * Defaults to the linked window ({@link #getRunescapeLinkedPollWindowMinutes}); set {@code RUNESCAPE_COMMUNITY_POLL_WINDOW_MINUTES} to tune it.
+     */
+    public long getRunescapeCommunityPollWindowMinutes() {
+        return positiveMinutes("RUNESCAPE_COMMUNITY_POLL_WINDOW_MINUTES", getRunescapeLinkedPollWindowMinutes());
     }
 
     /**

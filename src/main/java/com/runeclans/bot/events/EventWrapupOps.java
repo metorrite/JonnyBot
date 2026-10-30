@@ -45,7 +45,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -88,10 +87,13 @@ public class EventWrapupOps {
         thread.setDaemon(true);
         return thread;
     });
-    private final Map<Long, Export> exports = new ConcurrentHashMap<>();
+    /** Finished exports, shared by all bot processes so any of them can hand out the download (T-698). */
+    private final EventExportRepository exports;
     private volatile JDA jda;
 
-    public EventWrapupOps(EventRepository events, EventService service, EventSpaceRepository space, EventSpaceOps ops, EventSpaces spaces, EventWrapupRepository wrapup, EventChanges changes) {
+    public EventWrapupOps(EventRepository events, EventService service, EventSpaceRepository space, EventSpaceOps ops, EventSpaces spaces, EventWrapupRepository wrapup, EventChanges changes,
+                          EventExportRepository exports) {
+        this.exports = exports;
         this.events = events;
         this.service = service;
         this.space = space;
@@ -527,9 +529,10 @@ public class EventWrapupOps {
         requireOver(event);
         return ops.start(event.id(), "export", job -> {
             Export made = buildExport(guild, event, job);
-            exports.put(event.id(), made);
+            job.stopIfSuperseded(); // another job holds the event now: its result is the one to keep
+            // kept for the hour in Postgres; the repository's expiry lane deletes it after that, restarts or not
+            exports.save(event.guildId(), event.id(), made, made.madeAt().plus(EXPORT_KEEP_MINUTES, java.time.temporal.ChronoUnit.MINUTES));
             wrapup.exported(event.id());
-            executor.schedule(() -> exports.remove(event.id(), made), EXPORT_KEEP_MINUTES, TimeUnit.MINUTES);
             job.finish("The export is ready: " + made.channels() + " channels, " + made.messages() + " messages, " + made.images() + " images kept" + (made.links() > 0 ? " (" + made.links() + " more stay as links)" : "")
                     + ". Download it within the hour.");
         });
@@ -537,7 +540,16 @@ public class EventWrapupOps {
 
     /** The finished export of the event, or null when none was made (or it has expired). */
     public Export export(long eventId) {
-        return exports.get(eventId);
+        return exports.get(eventId, Instant.now());
+    }
+
+    /** What {@link #export} would hand out, without its bytes, or null. */
+    public EventExportRepository.Summary exportSummary(long eventId) {
+        try {
+            return exports.summary(eventId, Instant.now());
+        } catch (IllegalStateException e) {
+            throw new EventProblem(503, "The bot could not reach its database just now. Try again in a moment.");
+        }
     }
 
     private Export buildExport(Guild guild, Event event, Job job) {

@@ -1,6 +1,9 @@
 package com.runeclans.bot;
 
+import com.runeclans.bot.cachebus.CacheBus;
 import com.runeclans.bot.config.BotConfig;
+import com.runeclans.bot.config.BotRole;
+import com.runeclans.bot.internal.GatewayForward;
 import dev.freya02.botcommands.restarter.api.BotCommandsRestarter;
 import io.github.freya022.botcommands.api.core.BotCommands;
 import io.github.freya022.botcommands.api.core.config.BConfigBuilder;
@@ -8,6 +11,12 @@ import io.github.freya022.botcommands.api.core.config.BConfigBuilder;
 public class Main {
     public static void main(String[] args) {
         final var config = BotConfig.getInstance();
+        // T-670: the role is known before any service is built, so every service and lane can ask BotRole.current()
+        BotRole role = config.getRole();
+        if (role != BotRole.ALL) {
+            BotRole.checkedForStart(role, GatewayForward.parse(config.getGatewayInternalUrl()) != null, CacheBus.on(), internalApiSetUp(config));
+        }
+        BotRole.install(role);
 
         if(!config.getLiveEnvironment()) {
             BotCommandsRestarter.initialize(args, builder -> {
@@ -16,6 +25,15 @@ public class Main {
         }
 
         BotCommands.create(builder -> configure(builder, config));
+    }
+
+    /** Whether the internal API can start: a secret and a home server id (a {@code GUILD_ID} that isn't a number counts as missing). */
+    private static boolean internalApiSetUp(BotConfig config) {
+        try {
+            return config.getInternalApiSecret() != null && config.getGuildId() != null;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     /**

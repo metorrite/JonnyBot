@@ -310,6 +310,10 @@ public class EventRepository {
                 // when the roster or the teams last changed, so a roster confirmed or teams called final earlier can be seen to be out of date
                 "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS roster_changed_at TIMESTAMPTZ NULL;",
                 "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_changed_at TIMESTAMPTZ NULL;",
+                // when a player was last put on (or moved to) a team, so XP tiles count a moved player for the new team from the move (T-706); null = since joining
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS team_joined_at TIMESTAMPTZ NULL;",
+                // when the event last moved to scoring, so the final XP tile pass reads up to then and no further (T-706)
+                "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS scoring_at TIMESTAMPTZ NULL;",
                 // Discord signups the event's rules turned away, and why, so staff can see them and the player is told once
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_signup_refusal (
@@ -552,13 +556,14 @@ public class EventRepository {
     /** Moves an event from one stage to another. False when it wasn't in {@code from} any more, so two clicks can't both move it. */
     public boolean moveStage(long guildId, long id, Status from, Status to) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET status = ?, updated_at = NOW(), started_at = CASE WHEN ? THEN COALESCE(started_at, NOW()) ELSE started_at END "
-                     + "WHERE guild_id = ? AND id = ? AND status = ?")) {
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET status = ?, updated_at = NOW(), started_at = CASE WHEN ? THEN COALESCE(started_at, NOW()) ELSE started_at END, "
+                     + "scoring_at = CASE WHEN ? THEN NOW() ELSE scoring_at END WHERE guild_id = ? AND id = ? AND status = ?")) {
             s.setString(1, to.name());
             s.setBoolean(2, to == Status.RUNNING);
-            s.setLong(3, guildId);
-            s.setLong(4, id);
-            s.setString(5, from.name());
+            s.setBoolean(3, to == Status.SCORING);
+            s.setLong(4, guildId);
+            s.setLong(5, id);
+            s.setString(6, from.name());
             boolean moved = s.executeUpdate() == 1;
             if (moved) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return moved;
@@ -984,6 +989,22 @@ public class EventRepository {
         }
     }
 
+    /** Events of one template in every server that moved to scoring at or after {@code since}, for the final XP tile pass (T-706). */
+    public List<Event> scoringSince(String template, Instant since) {
+        List<Event> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE template = ? AND status = 'SCORING' AND scoring_at >= ? ORDER BY id")) {
+            s.setString(1, template);
+            s.setTimestamp(2, Timestamp.from(since));
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the events being scored", e);
+        }
+    }
+
     /** The running events a player has joined, in every server, for feeding what the plugin reports into them. Waitlisted players are filtered later by the engine. */
     public List<Event> runningEventsForUser(long userId) {
         List<Event> list = new ArrayList<>();
@@ -1014,6 +1035,33 @@ public class EventRepository {
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read when the event started", e);
         }
+    }
+
+    /** When the event last moved to scoring; empty for one that never has, or moved before this was kept. */
+    public java.util.Optional<Instant> scoringAt(long eventId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT scoring_at FROM younglings.event WHERE id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() && rs.getTimestamp(1) != null ? java.util.Optional.of(rs.getTimestamp(1).toInstant()) : java.util.Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read when the event moved to scoring", e);
+        }
+    }
+
+    /** When each player of the event was last put on (or moved to) their team, by user id; a player never moved since joining is absent. */
+    public Map<Long, Instant> teamJoinedAt(long eventId) {
+        Map<Long, Instant> joined = new HashMap<>();
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT user_id, team_joined_at FROM younglings.event_participant WHERE event_id = ? AND team_joined_at IS NOT NULL")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) joined.put(rs.getLong(1), rs.getTimestamp(2).toInstant());
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read when players joined their teams", e);
+        }
+        return joined;
     }
 
     /** Where a player's tracked stat stood when the competition began for them. */
@@ -1481,10 +1529,10 @@ public class EventRepository {
     public boolean setTeam(long eventId, long userId, Long teamId) {
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
-            try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
-                if (teamId == null) s.setNull(1, Types.BIGINT); else s.setLong(1, teamId);
-                s.setLong(2, eventId);
-                s.setLong(3, userId);
+            try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_joined_at = CASE WHEN team_id IS DISTINCT FROM ?::BIGINT THEN NOW() ELSE team_joined_at END, team_id = ? WHERE event_id = ? AND user_id = ?")) {
+                for (int i = 1; i <= 2; i++) if (teamId == null) s.setNull(i, Types.BIGINT); else s.setLong(i, teamId);
+                s.setLong(3, eventId);
+                s.setLong(4, userId);
                 boolean changed = s.executeUpdate() == 1;
                 clearStrayCaptains(c, eventId);
                 c.commit();
@@ -1510,11 +1558,11 @@ public class EventRepository {
             try {
                 lockParticipants(c, eventId);
                 int changed = 0;
-                try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
+                try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_joined_at = CASE WHEN team_id IS DISTINCT FROM ?::BIGINT THEN NOW() ELSE team_joined_at END, team_id = ? WHERE event_id = ? AND user_id = ?")) {
                     for (Map.Entry<Long, Long> e : teamOf.entrySet()) {
-                        if (e.getValue() == null) s.setNull(1, Types.BIGINT); else s.setLong(1, e.getValue());
-                        s.setLong(2, eventId);
-                        s.setLong(3, e.getKey());
+                        for (int i = 1; i <= 2; i++) if (e.getValue() == null) s.setNull(i, Types.BIGINT); else s.setLong(i, e.getValue());
+                        s.setLong(3, eventId);
+                        s.setLong(4, e.getKey());
                         changed += s.executeUpdate();
                     }
                 }

@@ -44,7 +44,7 @@ class SiteApiOnlineTest {
         when(discord.hiddenFromOnline(GUILD)).thenReturn(Set.of(HIDDEN));
         SiteApi api = new SiteApi(mock(SiteStatsRepository.class), mock(PlayerLinkRepository.class), mock(ClanPointsRepository.class),
                 mock(GuildSettingsService.class), mock(WeeklyDigestRepository.class), mock(MemberProfileRepository.class), mock(SiteNewsService.class),
-                mock(SignupService.class), new SiteCache(), mock(RecapService.class), mock(CommunitySettings.class), mock(BossStatsService.class), discord);
+                mock(SignupService.class), new SiteCache(), mock(RecapService.class), mock(CommunitySettings.class), mock(BossStatsService.class), discord, mock(com.runeclans.bot.clansite.ClanSitePluginFeed.class));
         Guild guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
         List<Member> online = List.of(member(SHOWN, "Shown"), member(HIDDEN, "Hidden"));

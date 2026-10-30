@@ -4,6 +4,7 @@ import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.config.BotConfig;
 import com.runeclans.bot.premium.Premium;
 import com.runeclans.bot.premium.PremiumFeatures;
+import com.runeclans.bot.runeclans.RuneClansHubClient;
 import com.runeclans.bot.runescape.polling.PollCoordinator;
 import com.runeclans.bot.runescape.polling.PollJob;
 import com.runeclans.bot.runescape.polling.PollPriority;
@@ -21,8 +22,10 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -31,20 +34,27 @@ import java.util.Set;
  * clan's roster itself (who's a member at all) up to date.
  * <p>
  * A player belongs to JonnyBot, not to a server, so there is one polling list for all of them and each name is
- * polled once per cycle however many servers it is in. The list has two tiers, each a job with its own window:
+ * polled once per cycle however many servers it is in. The list has three tiers, each a job with its own window:
  * <ul>
  *   <li><b>Clan players</b> — everyone currently in the clan of a server that has registered one, linked or not
  *       (rosters are read from every such server and merged, so a clan tracked by two servers is polled once).
  *       They are the reason for the tracking feeds, so they are refreshed often: every
  *       {@link BotConfig#getRunescapeClanPollWindowMinutes()} minutes. A poll's new activity is announced in
- *       every server whose clan the player is in (see {@link RuneScapeStatsService}).</li>
- *   <li><b>Everyone else who linked</b> — registered with JonnyBot but in no registered clan. Their profile and
+ *       every server whose clan the player is in (see {@link RuneScapeStatsService}). With the hub's polling list on, RuneLink-linked
+ *       characters the hub places in a clan registered on RuneClans join this tier too, whether or not any of the bot's servers has
+ *       that clan (T-736).</li>
+ *   <li><b>Community players</b> (T-736) — linked characters the hub's polling list places in a community and in no registered clan.
+ *       Tracked fully like the rest, every {@link BotConfig#getRunescapeCommunityPollWindowMinutes()} minutes (the linked window
+ *       unless set). Empty while the hub's list is off.</li>
+ *   <li><b>Everyone else who linked</b> — registered with JonnyBot ({@code /rsn}) or linked with RuneLink (the hub's polling list,
+ *       T-736), and in no registered clan or community. Their profile and
  *       history only need to stay roughly current, so they are spread across
  *       {@link BotConfig#getRunescapeLinkedPollWindowMinutes()} minutes, anchored so a cycle's last poll lands right
  *       before {@link #LINKED_ANCHOR_UTC} UTC, 30 minutes ahead of RuneScape's own daily reset — that keeps the day's
  *       numbers as current as reasonably possible without cutting it too close.</li>
  * </ul>
- * Players nobody has linked and no registered clan lists are not polled at all.
+ * Players nobody has linked and no registered clan lists are not polled at all. Every name is in one tier only ({@link #tiers}), and the
+ * engine merges a name already queued at another tier, so nobody is polled twice in a short window (Drake's rule, plan C-8 Q-6).
  * <p>
  * Each run works out its list afresh, so a server that registers a clan, or a player who links, joins the next run
  * without a restart. Each job spreads its players evenly across its window; the coordinator then paces them against
@@ -64,10 +74,12 @@ public class RosterPollScheduler {
     private final PollCoordinator pollCoordinator;
     private final BotConfig botConfig;
     private final Premium premiumGuilds;
+    private final HubPollingList hubList;
 
     public RosterPollScheduler(ClanMemberRepository clanMemberRepository, ClanSyncService clanSyncService, PlayerLinkService linkService,
-                                PollCoordinator pollCoordinator, BotConfig botConfig, Premium premiumGuilds) {
+                                PollCoordinator pollCoordinator, BotConfig botConfig, Premium premiumGuilds, RuneClansHubClient hub) {
         this.premiumGuilds = premiumGuilds;
+        this.hubList = HubPollingList.from(hub);
         this.clanMemberRepository = clanMemberRepository;
         this.clanSyncService = clanSyncService;
         this.linkService = linkService;
@@ -91,6 +103,7 @@ public class RosterPollScheduler {
         JDA jda = event.getJda();
         Duration clanWindow = Duration.ofMinutes(botConfig.getRunescapeClanPollWindowMinutes());
         Duration linkedWindow = Duration.ofMinutes(botConfig.getRunescapeLinkedPollWindowMinutes());
+        Duration communityWindow = Duration.ofMinutes(botConfig.getRunescapeCommunityPollWindowMinutes());
 
         Duration premiumWindow = Duration.ofMinutes(botConfig.getRunescapePremiumPollWindowMinutes());
         Duration firstRun = CLAN_INITIAL_DELAY.compareTo(GUILD_DISCOVERY_DELAY) > 0 ? CLAN_INITIAL_DELAY : GUILD_DISCOVERY_DELAY;
@@ -99,14 +112,15 @@ public class RosterPollScheduler {
         pollCoordinator.schedule(new PollJob("premium clan players", PollPriority.PREMIUM_CLAN, premiumWindow,
                 firstRun, premiumWindow, premiumWindow.dividedBy(2), () -> premiumClanPlayers(jda)));
         pollCoordinator.schedule(new PollJob("clan players", PollPriority.CLAN, clanWindow,
-                firstRun, clanWindow, clanWindow.dividedBy(2), () -> standardClanPlayers(clanPlayers(jda), premiumClanPlayers(jda))));
+                firstRun, clanWindow, clanWindow.dividedBy(2), () -> tiers(jda).clan()));
+        pollCoordinator.schedule(new PollJob("community players", PollPriority.COMMUNITY, communityWindow,
+                firstRun, communityWindow, communityWindow.dividedBy(2), () -> tiers(jda).community()));
         pollCoordinator.schedule(new PollJob("other linked players", PollPriority.LINKED, linkedWindow,
-                durationUntilNextUtc(LINKED_ANCHOR_UTC), linkedWindow, linkedWindow.dividedBy(2),
-                () -> otherLinkedPlayers(linkService.getAllAccountRsns(), clanPlayers(jda))));
+                durationUntilNextUtc(LINKED_ANCHOR_UTC), linkedWindow, linkedWindow.dividedBy(2), () -> tiers(jda).linked()));
 
-        log.info("Roster poll jobs registered: players in a registered clan are spread across every {}; " +
+        log.info("Roster poll jobs registered: players in a registered clan are spread across every {}; community players across every {}; " +
                         "other linked players across every {}, first cycle ending near {} UTC.",
-                clanWindow, linkedWindow, LINKED_ANCHOR_UTC);
+                clanWindow, communityWindow, linkedWindow, LINKED_ANCHOR_UTC);
     }
 
     /** The servers the bot is in that have a clan set up. Their rosters are the first tier. */
@@ -130,16 +144,41 @@ public class RosterPollScheduler {
         return ids.isEmpty() ? List.of() : clanMemberRepository.activeRsnsInGuilds(ids);
     }
 
-    /** The ordinary clan tier: every clan player except those a premium server already has on the faster plan, so nobody is polled in both. */
-    static List<String> standardClanPlayers(List<String> clanPlayers, List<String> premiumPlayers) {
-        return otherLinkedPlayers(clanPlayers, premiumPlayers);
+    /** The three recurring tiers below premium, worked out afresh for one job's run (the hub's list is shared for a few minutes). */
+    private Tiers tiers(JDA jda) {
+        return tiers(clanPlayers(jda), premiumClanPlayers(jda), linkService.getAllAccountRsns(), hubList.groups());
     }
 
-    /** The second tier: registered accounts that aren't already in the first (names compared ignoring case, as RuneScape treats them). */
-    static List<String> otherLinkedPlayers(List<String> accounts, List<String> clanPlayers) {
-        Set<String> inClans = new HashSet<>();
-        for (String rsn : clanPlayers) inClans.add(rsn.toLowerCase(Locale.ROOT));
-        return accounts.stream().filter(rsn -> !inClans.contains(rsn.toLowerCase(Locale.ROOT))).toList();
+    /** What the clan, community and linked jobs submit. Each name is in one list only, and never in a list below premium if it is premium. */
+    record Tiers(List<String> clan, List<String> community, List<String> linked) {}
+
+    /**
+     * Splits everyone the bot should keep fresh into one tier each (T-736): the clan tier is the bot's clan rosters plus the hub's {@code clan}
+     * group, the community tier the hub's {@code community} group, the linked tier the bot's {@code /rsn} accounts plus the hub's {@code linked}
+     * group. A name goes to the first tier that has it (premium, clan, community, linked; names compared ignoring case) and the list keeps the
+     * spelling it first came with.
+     */
+    static Tiers tiers(List<String> botClanPlayers, List<String> premiumPlayers, List<String> rsnAccounts, HubPollingList.Groups hub) {
+        Set<String> taken = new HashSet<>();
+        for (String rsn : premiumPlayers) taken.add(rsn.toLowerCase(Locale.ROOT));
+        List<String> clan = claim(taken, botClanPlayers, hub.clan());
+        List<String> community = claim(taken, hub.community());
+        List<String> linked = claim(taken, rsnAccounts, hub.linked());
+        return new Tiers(clan, community, linked);
+    }
+
+    /** The names of {@code lists} not yet in {@code taken}, once each in their first spelling; they are then taken. */
+    @SafeVarargs
+    private static List<String> claim(Set<String> taken, List<String>... lists) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (List<String> list : lists) {
+            for (String rsn : list) {
+                String key = rsn.toLowerCase(Locale.ROOT);
+                if (!taken.contains(key)) out.putIfAbsent(key, rsn);
+            }
+        }
+        taken.addAll(out.keySet());
+        return List.copyOf(out.values());
     }
 
     private static Duration durationUntilNextUtc(LocalTime target) {

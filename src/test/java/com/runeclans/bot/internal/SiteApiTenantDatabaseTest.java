@@ -93,6 +93,7 @@ class SiteApiTenantDatabaseTest {
     private static CommunitySettings community;
     private static WikiCatalog catalog;
     private SiteApi api;
+    private com.runeclans.bot.clansite.ClanSitePluginFeed feed;
     private SiteCache cache;
     private Guild guildA;
     private Guild guildB;
@@ -124,7 +125,7 @@ class SiteApiTenantDatabaseTest {
         cache = new SiteCache();
         api = new SiteApi(stats, links, points, settings, digest, profiles, mock(SiteNewsService.class), mock(SignupService.class),
                 cache, new RecapService(stats, profiles, digest, settings), community, new BossStatsService(stats, profiles, catalog),
-                discordShowingEvents());
+                discordShowingEvents(), feed = mock(com.runeclans.bot.clansite.ClanSitePluginFeed.class));
         guildA = guild(GUILD_A);
         guildB = guild(GUILD_B);
 
@@ -180,7 +181,7 @@ class SiteApiTenantDatabaseTest {
     void cleanUp() throws Exception {
         if (db == null) return;
         for (String table : List.of("clan_member", "player_link", "member_profile", "coffer_donation", "clan_roster_event", "signup", "poll", "member_privacy_default",
-                "member_recap_seen")) {
+                "member_recap_seen", "clan_points_award")) {
             sql("DELETE FROM younglings." + table + " WHERE guild_id IN (?, ?)", GUILD_A, GUILD_B);
         }
         for (String rsn : NAMES) {
@@ -331,6 +332,29 @@ class SiteApiTenantDatabaseTest {
 
         DataObject hidden = api.member(guildA, HIDDEN).getObject("standing");
         assertTrue(hidden.isNull("weekGain") && hidden.isNull("points"), "a member hidden from boards has no place on them");
+    }
+
+    @Test
+    void theLeaderboardRaceShowsOnlyActiveMembersWhoMayBeRanked() throws Exception {
+        String former = "T710Former";
+        String alt = "T710AltName";
+        sql("INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank, active) VALUES (?, ?, 'Recruit', FALSE)", GUILD_A, former);
+        for (String rsn : List.of(SHOWN, HIDDEN, former, alt)) {
+            sql("INSERT INTO younglings.clan_points_award (guild_id, rsn, award_type, points, awarded_for_date) VALUES (?, ?, 'T710', 25, CURRENT_DATE - 1)", GUILD_A, rsn);
+        }
+        var racing = org.mockito.ArgumentCaptor.<java.util.function.Predicate<String>>captor();
+        when(feed.xpRace(org.mockito.ArgumentMatchers.eq(GUILD_A), racing.capture())).thenReturn(null);
+
+        DataObject overview = call(guildA, "overview");
+        String month = overview.getArray("topPointsMonth").toString().toLowerCase(Locale.ROOT);
+        String points = text(overview.getObject("race"));
+        assertTrue(month.contains(SHOWN.toLowerCase(Locale.ROOT)), month);
+        for (String out : List.of(HIDDEN, former, alt)) {
+            assertFalse(month.contains(out.toLowerCase(Locale.ROOT)), out + " in " + month);
+            assertFalse(points.contains(out.toLowerCase(Locale.ROOT)), out + " in " + points);
+        }
+        assertTrue(racing.getValue().test(SHOWN) && racing.getValue().test(SHOWN.toUpperCase(Locale.ROOT)), "a shown member races, however the hub cased the name");
+        for (String out : List.of(HIDDEN, former, alt)) assertFalse(racing.getValue().test(out), out + " must not race in the XP race");
     }
 
     @Test

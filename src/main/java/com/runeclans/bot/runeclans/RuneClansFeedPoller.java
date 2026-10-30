@@ -30,7 +30,7 @@ import java.util.function.Supplier;
 
 /**
  * With {@code RUNECLANS_HUB_ENABLED} on, plugin events reach the bot from the RuneClans hub instead of its own ingest (runeclans-hub HUB-DESIGN.md
- * section 7): every 30 seconds it reads JonnyBot's change feed and hands each {@code plugin.event} to the same {@link PluginEventSink}s
+ * section 7): every few seconds ({@link #POLL_EVERY_SECONDS}) it reads JonnyBot's change feed and hands each {@code plugin.event} to the same {@link PluginEventSink}s
  * (points, event tiles) the bot's own ingest uses. It also, when the bot connects, registers the servers it is in, and when a player grants
  * JonnyBot with identity, adds them to those of its servers they are a member of.
  * <ul>
@@ -44,15 +44,20 @@ import java.util.function.Supplier;
 public class RuneClansFeedPoller {
     private static final Logger log = LoggerFactory.getLogger(RuneClansFeedPoller.class);
     static final int PAGE = 200;
+    /**
+     * How often the feed is read. Short so a request changed on the website shows on its Discord card within about 5 seconds (T-734); an
+     * empty read is one cheap call, far inside a first-party key's limit.
+     */
+    static final int POLL_EVERY_SECONDS = 3;
 
     private final RuneClansHubClient hub;
     private final Relay relay;
     private volatile JDA jda;
     private final ScheduledExecutorService executor = BotScheduler.lane("runeclans-feed");
 
-    public RuneClansFeedPoller(RuneClansHubClient hub, RuneClansFeedCursor cursor, List<PluginEventSink> sinks) {
+    public RuneClansFeedPoller(RuneClansHubClient hub, RuneClansFeedCursor cursor, List<PluginEventSink> sinks, List<HubFeedListener> listeners) {
         this.hub = hub;
-        this.relay = new Relay(hub, cursor::load, cursor::save, sinks, this::addToGuilds);
+        this.relay = new Relay(hub, cursor::load, cursor::save, sinks, this::addToGuilds, listeners);
         if (hub.enabled()) start();
     }
 
@@ -79,7 +84,7 @@ public class RuneClansFeedPoller {
             } catch (RuntimeException e) {
                 log.warn("RuneClans feed poll failed: {}", e.getClass().getSimpleName());
             }
-        }, 20, 30, TimeUnit.SECONDS);
+        }, 20, POLL_EVERY_SECONDS, TimeUnit.SECONDS);
         // writes the hub couldn't take when they were made (hub down or busy), held in memory for up to 5 minutes
         executor.scheduleWithFixedDelay(() -> {
             try {
@@ -108,24 +113,37 @@ public class RuneClansFeedPoller {
         private final Consumer<String> saveCursor;
         private final List<PluginEventSink> sinks;
         private final Consumer<Map.Entry<String, Long>> granted;
+        private final List<HubFeedListener> listeners;
         private final ConcurrentHashMap<String, CachedId> ids = new ConcurrentHashMap<>();
+        /** The cursor as last loaded or saved: read from the database once, written only when the feed moved (it is polled every few seconds). */
+        private String known;
+        private boolean loaded;
 
         private record CachedId(Optional<Long> id, Instant until) {}
 
         Relay(RuneClansHubClient hub, Supplier<Optional<String>> loadCursor, Consumer<String> saveCursor, List<PluginEventSink> sinks,
               Consumer<Map.Entry<String, Long>> granted) {
+            this(hub, loadCursor, saveCursor, sinks, granted, List.of());
+        }
+
+        Relay(RuneClansHubClient hub, Supplier<Optional<String>> loadCursor, Consumer<String> saveCursor, List<PluginEventSink> sinks,
+              Consumer<Map.Entry<String, Long>> granted, List<HubFeedListener> listeners) {
             this.hub = hub;
             this.loadCursor = loadCursor;
             this.saveCursor = saveCursor;
             this.sinks = List.copyOf(sinks);
             this.granted = granted;
+            this.listeners = List.copyOf(listeners);
         }
 
         /** Reads the feed until it has no more. Returns how many events were passed on. */
         int poll() {
-            Optional<String> stored = loadCursor.get();
-            boolean firstRun = stored.isEmpty();
-            String cursor = stored.orElse(null);
+            if (!loaded) {
+                known = loadCursor.get().orElse(null);
+                loaded = true;
+            }
+            boolean firstRun = known == null;
+            String cursor = known;
             int passed = 0;
             for (int pages = 0; pages < 50; pages++) {
                 RuneClansHubClient.Answer a = hub.feed(cursor, PAGE);
@@ -133,7 +151,10 @@ public class RuneClansFeedPoller {
                 DataArray data = a.json().getArray("data");
                 if (!firstRun) passed += handle(data);
                 cursor = a.json().getString("nextCursor", cursor);
-                if (cursor != null) saveCursor.accept(cursor);
+                if (cursor != null && !cursor.equals(known)) {
+                    saveCursor.accept(cursor);
+                    known = cursor;
+                }
                 if (!a.json().getBoolean("more", false)) break;
             }
             if (firstRun) log.info("RuneClans feed: started from its current end (nothing replayed)");
@@ -148,6 +169,13 @@ public class RuneClansFeedPoller {
                 DataObject e = entries.getObject(i);
                 String kind = e.getString("kind", "");
                 hub.onHubChange(kind, e.optObject("data").orElse(null));
+                for (HubFeedListener l : listeners) {
+                    try {
+                        l.onHubFeed(kind, e.optObject("data").orElse(null));
+                    } catch (RuntimeException ex) {
+                        log.warn("A hub feed listener failed: {}", ex.getClass().getSimpleName());
+                    }
+                }
                 String alias = e.getString("alias", null);
                 if (alias == null) continue;
                 if (kind.equals("player.grant_changed") && !e.getObject("data").getBoolean("revoked", false) && e.getObject("data").getBoolean("identity", false)) {

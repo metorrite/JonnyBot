@@ -1,7 +1,10 @@
 package com.runeclans.bot.internal;
 
 import com.runeclans.bot.internal.CockpitRules.CapWeek;
+import com.runeclans.bot.internal.RankAdvisorRules.Due;
 import com.runeclans.bot.internal.RankAdvisorRules.Facts;
+import com.runeclans.bot.internal.RankAdvisorRules.Hold;
+import com.runeclans.bot.internal.RankAdvisorRules.Promoted;
 import com.runeclans.bot.internal.RankAdvisorRules.Ready;
 import com.runeclans.bot.internal.RankAdvisorRules.Rule;
 import com.runeclans.bot.internal.RankAdvisorRules.Tick;
@@ -27,6 +30,10 @@ class RankAdvisorRulesTest {
 
     private static Facts member(String rsn, String rank, Long xp, int daysIn, Integer caps, long points) {
         return new Facts(rsn, rank, xp, NOW.minusDays(daysIn), NOW.minusDays(daysIn), caps, points);
+    }
+
+    private static List<String> names(List<Ready> ready) {
+        return ready.stream().map(x -> x.member().rsn()).toList();
     }
 
     private static Map<String, Rule> rules(Rule... rules) {
@@ -131,9 +138,111 @@ class RankAdvisorRulesTest {
     void theCongratsTextIsCleanedAndFilledIn() {
         assertEquals(RankAdvisorRules.DEFAULT_CONGRATS, RankAdvisorRules.cleanCongrats("   "));
         assertEquals("Hi\nthere", RankAdvisorRules.cleanCongrats(" Hi\r\nthere\u0007 "));
-        assertEquals(RankAdvisorRules.MAX_CONGRATS, RankAdvisorRules.cleanCongrats("x".repeat(500)).length());
-        assertEquals("Well done Zezima, now a Sergeant", RankAdvisorRules.congratsText("Well done {name}, now a {rank}", "Zezima", "Sergeant"));
-        assertEquals("Congratulations Zezima on your promotion to Corporal!", RankAdvisorRules.congratsText(null, "Zezima", "Corporal"));
+        assertEquals(RankAdvisorRules.MAX_CONGRATS, RankAdvisorRules.cleanCongrats("x".repeat(1500)).length());
+        List<Promoted> two = List.of(new Promoted("zezima", "Zezima", "Recruit", "Corporal", "Zez"), new Promoted("b_ob", "B_ob", "Corporal", "Sergeant", null), new Promoted("x", "X", "Recruit", "Corporal", "**Loud**"));
+        assertEquals("Well done, 3 of you!\n• @Zez (Zezima): Corporal\n• B_ob: Sergeant\n• @\\*\\*Loud\\*\\* (X): Corporal",
+                RankAdvisorRules.weeklyText("Well done, {count} of you!\n{list}", two), "Discord names and RuneScape names, markdown escaped");
+        assertEquals("Nice work\n• @Zez (Zezima): Corporal", RankAdvisorRules.weeklyText("Nice work", two.subList(0, 1)), "no {list}: the list goes under");
+        assertEquals("", RankAdvisorRules.weeklyText(null, List.of()), "nobody promoted: no message");
+        assertTrue(RankAdvisorRules.weeklyText(null, two).startsWith("Congratulations to everyone promoted this week!\n• @Zez"));
+    }
+
+    @Test
+    void aMemberNamedEveryoneNeverPingsTheServerFromTheCopiedText() {
+        String line = RankAdvisorRules.congratsLine(new Promoted("a", "A", "Recruit", "Corporal", "everyone"));
+        assertEquals("• @\u200beveryone (A): Corporal", line);
+        String inside = RankAdvisorRules.congratsLine(new Promoted("b", "B", "Recruit", "Corporal", "hi @Here"));
+        assertFalse(inside.toLowerCase().contains("@here"), inside);
+        assertFalse(line.contains("@everyone"));
+    }
+
+    @Test
+    void missingDiscordNamesAreFilledInWhenShown() {
+        List<Promoted> week = List.of(new Promoted("a", "A", "Recruit", "Corporal", null), new Promoted("b", "B", "Recruit", "Corporal", "Kept"));
+        List<Promoted> named = RankAdvisorRules.withNames(week, Map.of("a", "Now Known", "b", "Other"));
+        assertEquals("Now Known", named.get(0).discordName(), "a turn without Discord's cache stored no name");
+        assertEquals("Kept", named.get(1).discordName(), "a stored name stays");
+        assertNull(RankAdvisorRules.withNames(week, Map.of()).get(0).discordName());
+    }
+
+    @Test
+    void anEmptyOrPartialRosterKeepsEveryoneDue() {
+        LocalDate week = LocalDate.of(2026, 10, 28);
+        List<Due> due = List.of(new Due("a", "A", "Recruit", "Corporal", week.minusWeeks(1)), new Due("b", "B", "Recruit", "Corporal", week.minusWeeks(1)));
+        RankAdvisorRules.Turn none = RankAdvisorRules.turn(week, due, List.of(), List.of(), java.util.Set.of(), Map.of());
+        assertTrue(none.promoted().isEmpty());
+        assertTrue(none.drop().isEmpty(), "a roster sync outage must not wipe the due list");
+        RankAdvisorRules.Turn part = RankAdvisorRules.turn(week, due, List.of(member("A", "Corporal", 0L, 30, null, 0)), List.of(), java.util.Set.of(), Map.of());
+        assertEquals(List.of("a"), part.drop().stream().map(Due::rsnKey).toList(), "B, missing this time, stays due for next week");
+    }
+
+    @Test
+    void theStaffCheckIsOneShortLine() {
+        assertNull(RankAdvisorRules.cleanStaffCheck("   "));
+        assertEquals("Master CAs done", RankAdvisorRules.cleanStaffCheck(" Master\nCAs   done "));
+        assertEquals(RankAdvisorRules.MAX_STAFF_CHECK, RankAdvisorRules.cleanStaffCheck("y".repeat(300)).length());
+        assertTrue(new Rule("Corporal", null, null, null, null, "Elite CAs").empty(), "a staff check alone checks nothing");
+        assertFalse(new Rule("Corporal", null, null, null, null, "Elite CAs").blank(), "but it is saved");
+    }
+
+    @Test
+    void longMessagesAreCutAtLineEnds() {
+        List<String> parts = RankAdvisorRules.chunks("aaaa\nbbbb\ncc", 9);
+        assertEquals(List.of("aaaa\nbbbb", "cc"), parts);
+        assertEquals(List.of("abcde", "fgh"), RankAdvisorRules.chunks("abcdefgh", 5), "one over-long line is cut where it must be");
+        String big = String.join("\n", java.util.Collections.nCopies(300, "• @Someone Long (Some Rsn): Lieutenant"));
+        for (String p : RankAdvisorRules.chunks(big, RankAdvisorRules.DISCORD_MAX)) assertTrue(p.length() <= RankAdvisorRules.DISCORD_MAX);
+        assertEquals(big, String.join("\n", RankAdvisorRules.chunks(big, RankAdvisorRules.DISCORD_MAX)), "nothing is lost");
+    }
+
+    @Test
+    void heldMembersLeaveTheReadyListAndPendingIsLowestRankFirst() {
+        Map<String, Rule> r = rules(new Rule("Corporal", null, 10, null, null, "Elite CAs"), new Rule("Captain", null, 10, null, null));
+        List<Facts> members = List.of(member("Low", "Recruit", 0L, 30, null, 0), member("High", "Lieutenant", 0L, 30, null, 0),
+                member("Alt", "Recruit", 0L, 30, null, 0), member("Fresh", "Recruit", 0L, 2, null, 0));
+        List<Hold> holds = List.of(new Hold("high", "High", RankAdvisorRules.PENDING, STAFF, "Mod", NOW),
+                new Hold("low", "Low", RankAdvisorRules.PENDING, STAFF, "Mod", NOW), new Hold("alt", "Alt", RankAdvisorRules.IGNORED, STAFF, "Mod", NOW),
+                new Hold("fresh", "Fresh", RankAdvisorRules.PENDING, STAFF, "Mod", NOW));
+        java.util.Set<String> held = java.util.Set.of("high", "low", "alt", "fresh");
+        assertTrue(RankAdvisorRules.ready(members, r, List.of(), NOW, true, held).isEmpty(), "held members are listed apart");
+        assertEquals(List.of("Alt", "Low"), names(RankAdvisorRules.ready(members, r, List.of(), NOW, true, java.util.Set.of("high", "fresh"))));
+        List<RankAdvisorRules.Pending> pending = RankAdvisorRules.pending(members, r, List.of(), holds, NOW, true);
+        assertEquals(List.of("Fresh", "Low", "High"), pending.stream().map(p -> p.member().rsn()).toList(), "lowest current rank first, ignored left out");
+        assertFalse(pending.get(0).meets(), "on the list without meeting the numbers yet");
+        assertTrue(pending.get(1).meets());
+        assertEquals("Captain", pending.get(2).next().target());
+    }
+
+    @Test
+    void theWeekTurnsTwelveHoursAfterTheCitadelReset() {
+        // 2026-10-28 is a Wednesday
+        assertEquals(LocalDate.of(2026, 10, 21), RankAdvisorRules.weekOf(OffsetDateTime.of(2026, 10, 28, 11, 59, 0, 0, ZoneOffset.UTC)));
+        assertEquals(LocalDate.of(2026, 10, 28), RankAdvisorRules.weekOf(OffsetDateTime.of(2026, 10, 28, 12, 0, 0, 0, ZoneOffset.UTC)));
+        assertEquals(LocalDate.of(2026, 10, 28), RankAdvisorRules.weekOf(OffsetDateTime.of(2026, 11, 4, 11, 0, 0, 0, ZoneOffset.UTC)));
+        assertEquals(LocalDate.of(2026, 10, 28), RankAdvisorRules.weekOf(OffsetDateTime.of(2026, 11, 3, 20, 0, 0, 0, ZoneOffset.ofHours(-5))),
+                "any offset reads as UTC");
+    }
+
+    @Test
+    void theTurnCongratulatesWhoWasDueAndGotTheRank() {
+        LocalDate week = LocalDate.of(2026, 10, 28);
+        LocalDate last = week.minusWeeks(1);
+        List<Facts> members = List.of(member("Got It", "Corporal", 0L, 30, null, 0), member("Not Yet", "Recruit", 0L, 30, null, 0),
+                member("Ticked", "Corporal", 0L, 30, null, 0), member("Jumped", "Lieutenant", 0L, 30, null, 0),
+                member("Alt", "Corporal", 0L, 30, null, 0), member("Stale", "Recruit", 0L, 300, null, 0), member("New Due", "Corporal", 0L, 30, null, 0));
+        List<Due> due = List.of(new Due("got it", "Got It", "Recruit", "Corporal", last), new Due("not yet", "Not Yet", "Recruit", "Corporal", last),
+                new Due("ticked", "Ticked", "Corporal", "Sergeant", last), new Due("jumped", "Jumped", "Corporal", "Sergeant", last.minusWeeks(2)),
+                new Due("alt", "Alt", "Recruit", "Corporal", last), new Due("left", "Left", "Recruit", "Corporal", last),
+                new Due("stale", "Stale", "Recruit", "Corporal", week.minusWeeks(RankAdvisorRules.DUE_KEEP_WEEKS + 1)),
+                new Due("new due", "New Due", "Recruit", "Corporal", week));
+        List<Tick> ticks = List.of(new Tick("ticked", "Sergeant", STAFF, "Mod", NOW));
+        RankAdvisorRules.Turn turn = RankAdvisorRules.turn(week, due, members, ticks, java.util.Set.of("alt"), Map.of("got it", "GotItDiscord"));
+        assertEquals(List.of("Jumped:Lieutenant", "Ticked:Sergeant", "Got It:Corporal"),
+                turn.promoted().stream().map(p -> p.rsn() + ":" + p.toRank()).toList(), "highest rank first; the in-game rank when higher than due");
+        assertEquals("GotItDiscord", turn.promoted().get(2).discordName());
+        List<String> dropped = turn.drop().stream().map(Due::rsnKey).sorted().toList();
+        assertEquals(List.of("alt", "got it", "jumped", "stale", "ticked"), dropped,
+                "not yet stays due; someone missing from the roster ages out; this week's entries wait for next week");
     }
 
     @Test
@@ -152,6 +261,14 @@ class RankAdvisorRulesTest {
         List<Rule> rules = SiteRankAdvisor.parseRules(body, problems);
         assertEquals(1, rules.size());
         assertEquals(new Rule("Corporal", 1_000_000L, 14, null, 5L), rules.getFirst());
+
+        List<String> fine = new ArrayList<>();
+        List<Rule> withCheck = SiteRankAdvisor.parseRules(DataObject.fromJson("""
+                {"rules": [{"rank": "General", "staffCheck": "  Master CAs  "}, {"rank": "Captain", "minDays": 5, "staffCheck": null}]}
+                """), fine);
+        assertEquals(List.of(), fine);
+        assertEquals("Master CAs", withCheck.get(0).staffCheck());
+        assertNull(withCheck.get(1).staffCheck());
         assertEquals(5, problems.size(), problems.toString());
         assertTrue(problems.stream().anyMatch(p -> p.contains("Owner")));
         assertTrue(problems.stream().anyMatch(p -> p.contains("Corporal has two rules")));
@@ -168,6 +285,8 @@ class RankAdvisorRulesTest {
         assertTrue(json.isNull("minXp"));
         assertEquals(30, json.getInt("minDays"));
         assertEquals(4, json.getInt("minCaps"));
+        assertTrue(json.isNull("staffCheck"));
+        assertEquals("Elite CAs", SiteRankAdvisor.ruleJson(new Rule("General", null, 30, null, null, "Elite CAs")).getString("staffCheck"));
     }
 
     @Test

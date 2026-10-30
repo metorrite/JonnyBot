@@ -12,7 +12,9 @@ import java.util.HexFormat;
  * What a hub change means for the bot's {@link HubCache} (runeclans-hub PLATFORM-DESIGN 2.4, 9.2). A change arrives as a feed entry or a
  * webhook, both {@code {"kind", "data"}}; changes made through the hub's one write path carry {@code data.item} and {@code data.id}, and the
  * cache drops every answer tagged {@code <item>:<id>}. {@code access.changed} drops every {@code access} answer (gates are few and change
- * rarely), and any {@code site.*} change every {@code sites} answer (a server's site and its role mappings, T-505). Webhooks are checked with {@link #signatureValid} before they are trusted.
+ * rarely), and any {@code site.*} or {@code community.*} change every {@code sites} answer (a server's site and its role mappings, T-505; a
+ * community's mapped Discord role is one of them, T-732), and so does {@code feature.changed} (the request handler roles of
+ * {@code requests.discord} join a server's role mappings, T-734). Webhooks are checked with {@link #signatureValid} before they are trusted.
  */
 final class HubChanges {
     /** A webhook signed more than this long ago (or ahead) is refused, so a captured one can't be replayed later. */
@@ -30,7 +32,9 @@ final class HubChanges {
         if (kind == null) return 0;
         int dropped = 0;
         if (kind.equals("access.changed") || kind.startsWith("access.")) dropped += cache.evictTag("access");
-        if (kind.startsWith("site.")) dropped += cache.evictTag("sites");
+        if (kind.startsWith("site.") || kind.startsWith("community.") || kind.equals("feature.changed")) dropped += cache.evictTag("sites");
+        // a league, its terms, a round or a result moved (T-759): the server's league answers are read again
+        if (kind.startsWith("league.")) dropped += cache.evictTag("leagues");
         if (data != null && data.hasKey("item") && data.hasKey("id") && !data.isNull("item") && !data.isNull("id")) {
             dropped += cache.evictTag(tag(data.getString("item"), data.getString("id")));
         }

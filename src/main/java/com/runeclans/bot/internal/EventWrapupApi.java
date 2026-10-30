@@ -113,7 +113,12 @@ public class EventWrapupApi implements AdminRouteExtension {
     }
 
     private DataObject file(long id) {
-        EventWrapupOps.Export export = wrapupOps.export(id);
+        EventWrapupOps.Export export;
+        try {
+            export = wrapupOps.export(id);
+        } catch (IllegalStateException e) {
+            throw new ApiError(503, "The bot could not reach its database just now. Try again in a moment.");
+        }
         if (export == null) throw new ApiError(404, Text.en("dashboard.there_is_no_export_waiting_make"));
         return DataObject.empty().put("name", export.name()).put("size", export.data().length).put("base64", Base64.getEncoder().encodeToString(export.data()));
     }
@@ -134,8 +139,8 @@ public class EventWrapupApi implements AdminRouteExtension {
         EventSpaceOps.Job job = spaceOps.job(id);
         DataObject jobJson = job == null ? null : DataObject.empty().put("kind", job.kind()).put("state", job.state()).put("done", job.done()).put("total", job.total()).put("message", job.message())
                 .put("startedAt", job.startedAt().toString()).put("finishedAt", job.finishedAt() == null ? null : job.finishedAt().toString());
-        EventWrapupOps.Export export = wrapupOps.export(id);
-        DataObject exportJson = export == null ? null : DataObject.empty().put("name", export.name()).put("size", export.data().length).put("madeAt", export.madeAt().toString())
+        var export = wrapupOps.exportSummary(id);
+        DataObject exportJson = export == null ? null : DataObject.empty().put("name", export.name()).put("size", export.size()).put("madeAt", export.madeAt().toString())
                 .put("channels", export.channels()).put("messages", export.messages()).put("images", export.images()).put("links", export.links());
 
         return DataObject.empty().put("over", over).put("status", event.status().name()).put("settings", EventWrapup.toJson(setting)).put("state", state).put("schedule", schedule)

@@ -73,6 +73,7 @@ public class RuneMetricsBudgetAdminApi implements AdminRouteExtension {
         long clanWindow = config.getRunescapeClanPollWindowMinutes();
         long premiumWindow = config.getRunescapePremiumPollWindowMinutes();
         long linkedWindow = config.getRunescapeLinkedPollWindowMinutes();
+        long communityWindow = config.getRunescapeCommunityPollWindowMinutes();
 
         DataArray tiers = DataArray.empty();
         for (PollPriority p : PollPriority.values()) {
@@ -80,6 +81,7 @@ public class RuneMetricsBudgetAdminApi implements AdminRouteExtension {
             Long window = switch (p) {
                 case PREMIUM_CLAN -> premiumWindow;
                 case CLAN -> clanWindow;
+                case COMMUNITY -> communityWindow;
                 case LINKED -> linkedWindow;
                 case INTERACTIVE -> null;
             };

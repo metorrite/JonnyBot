@@ -58,6 +58,28 @@ class HubClientPartsTest {
     }
 
     @Test
+    void headersReachTheHubOnEveryTry() {
+        List<Map<String, String>> seen = new ArrayList<>();
+        RuneClansHubClient.Transport inner = new RuneClansHubClient.Transport() {
+            @Override
+            public RuneClansHubClient.Answer call(String method, String path, String body) {
+                throw new AssertionError("headers dropped");
+            }
+
+            @Override
+            public RuneClansHubClient.Answer call(String method, String path, String body, Map<String, String> headers) {
+                seen.add(headers);
+                return seen.size() == 1 ? new RuneClansHubClient.Answer(503, null) : ok("x");
+            }
+        };
+        HubRetry retry = new HubRetry(inner, w -> { });
+        assertTrue(retry.call("PUT", "/v1/requests/x/status", "{}", Map.of("If-Match", "4")).ok());
+        assertEquals(List.of(Map.of("If-Match", "4"), Map.of("If-Match", "4")), seen);
+        assertEquals(200, new RuneClansHubClient(on(), retry).call("PUT", "/v1/x", "{}", Map.of("If-Match", "1")).status());
+        assertNull(new RuneClansHubClient(RuneClansSettings.OFF, inner).call("PUT", "/v1/x", "{}", Map.of("If-Match", "1")), "off: never called");
+    }
+
+    @Test
     void retriesOnlyWhatIsSafeToRepeat() {
         List<Duration> waits = new ArrayList<>();
         AtomicInteger calls = new AtomicInteger();
@@ -163,6 +185,12 @@ class HubClientPartsTest {
         cache.put("/v1/guilds/1/role-mappings", ok("r"), Set.of("sites"));
         assertEquals(2, HubChanges.evict(cache, "site.published", DataObject.empty()));
         assertNull(cache.fresh("/v1/guilds/1/site"));
+        // a community's mapped Discord role is one of the role mappings (T-732)
+        cache.put("/v1/guilds/1/role-mappings", ok("r"), Set.of("sites"));
+        assertEquals(1, HubChanges.evict(cache, "community.changed", DataObject.empty()));
+        // a league, its terms, a round or a result moved (T-759)
+        cache.put("/v1/guilds/1/leagues", ok("l"), Set.of("leagues"));
+        assertEquals(1, HubChanges.evict(cache, "league.results", DataObject.empty()));
         assertEquals(0, HubChanges.evict(cache, null, null));
     }
 

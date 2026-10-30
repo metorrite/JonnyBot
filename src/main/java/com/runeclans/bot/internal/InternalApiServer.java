@@ -2,8 +2,10 @@ package com.runeclans.bot.internal;
 
 import com.runeclans.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import com.runeclans.bot.config.BotConfig;
+import com.runeclans.bot.config.BotRole;
 import com.runeclans.bot.hubsites.HubSites;
 import com.runeclans.bot.ops.OpsTelemetry;
 import com.runeclans.bot.hubsites.SitesMoved;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 /**
  * A small, private HTTP API for the companion website (younglings-website) to read live guild
@@ -70,6 +73,8 @@ import java.util.concurrent.TimeUnit;
 public class InternalApiServer {
     private static final Logger log = LoggerFactory.getLogger(InternalApiServer.class);
     private static final String SECRET_HEADER = "X-Internal-Secret";
+    /** Worker threads in the api role, where a request mostly waits for the gateway's answer. */
+    static final int FORWARDING_THREADS = 32;
     private static final String GUILD_HEADER = "X-Guild-Id";
 
     private final BotConfig botConfig;
@@ -114,6 +119,24 @@ public class InternalApiServer {
         start();
     }
 
+    /**
+     * One route: answered here, or (in the api role, for a route that needs Discord state) passed on to the gateway once the caller passes
+     * {@code authorized}, the route's own check.
+     */
+    private static void route(HttpServer server, GatewayForward forward, String path, HttpHandler handler, Predicate<HttpExchange> authorized) {
+        OpsTelemetry.context(server, path, forward == null ? handler : forward.handlerFor(path, handler, authorized));
+    }
+
+    /** The api role's way to the gateway, or null (logged) when its address is unusable; start-up refuses that first (BotRole). */
+    private GatewayForward gatewayForward() {
+        try {
+            return new GatewayForward(botConfig.getGatewayInternalUrl());
+        } catch (IllegalArgumentException e) {
+            log.error("Internal API not started: GATEWAY_INTERNAL_URL is not an http(s) address with a host");
+            return null;
+        }
+    }
+
     private void start() {
         String secret = botConfig.getInternalApiSecret();
         Long guildId = botConfig.getGuildId();
@@ -128,28 +151,41 @@ public class InternalApiServer {
         }
 
         try {
+            // T-746: the api role has no servers or members of its own, so it passes those routes on to the gateway process
+            // (built before the port is taken, so an unusable address leaves nothing bound)
+            GatewayForward forward = BotRole.current().forwardsToGateway() ? gatewayForward() : null;
+            if (BotRole.current().forwardsToGateway() && forward == null) return;
             int port = botConfig.getInternalApiPort();
             HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+            if (forward != null) log.info("BOT_ROLE=api: routes that need servers or members are answered by the gateway process");
+            Predicate<HttpExchange> internal = exchange -> {
+                String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+                return provided != null && constantTimeEquals(provided, secret);
+            };
 
-            OpsTelemetry.context(server, "/internal/online-members", exchange -> handleOnlineMembers(exchange, secret, guildId));
-            OpsTelemetry.context(server, "/internal/events", exchange -> handleEvents(exchange, secret, guildId));
-            OpsTelemetry.context(server, "/internal/member", exchange -> handleGetMember(exchange, secret, guildId));
-            OpsTelemetry.context(server, "/internal/nickname", exchange -> handleSetNickname(exchange, secret, guildId));
-            OpsTelemetry.context(server, "/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId));
+            route(server, forward, "/internal/online-members", exchange -> handleOnlineMembers(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/events", exchange -> handleEvents(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/member", exchange -> handleGetMember(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/nickname", exchange -> handleSetNickname(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId), internal);
 
-            OpsTelemetry.context(server, "/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
-            OpsTelemetry.context(server, "/internal/site/", exchange -> handleSite(exchange, secret, guildId));
-            OpsTelemetry.context(server, "/internal/directory/", exchange -> handleDirectory(exchange, secret));
-            OpsTelemetry.context(server, "/internal/plugin/", exchange -> handlePlugin(exchange, secret));
-            OpsTelemetry.context(server, "/internal/me/", exchange -> handleMe(exchange, secret, guildId));
-            OpsTelemetry.context(server, "/internal/image/", exchange -> handleImage(exchange, secret));
-            OpsTelemetry.context(server, "/internal/forms/", exchange -> handleForms(exchange, secret));
-            OpsTelemetry.context(server, "/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret));
-            for (InternalRouteModule module : routeModules) OpsTelemetry.context(server, module.prefix(), exchange -> handleModule(exchange, secret, module));
+            route(server, forward, "/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/site/", exchange -> handleSite(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/directory/", exchange -> handleDirectory(exchange, secret), internal);
+            route(server, forward, "/internal/plugin/", exchange -> handlePlugin(exchange, secret), internal);
+            route(server, forward, "/internal/me/", exchange -> handleMe(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/image/", exchange -> handleImage(exchange, secret), internal);
+            route(server, forward, "/internal/forms/", exchange -> handleForms(exchange, secret), internal);
+            route(server, forward, "/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret), internal);
+            for (InternalRouteModule module : routeModules) {
+                route(server, forward, module.prefix(), exchange -> handleModule(exchange, secret, module), exchange -> module.authorized(exchange, secret));
+            }
 
             // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
             // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.
-            server.setExecutor(new ThreadPoolExecutor(6, 6, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(64), new ThreadPoolExecutor.CallerRunsPolicy()));
+            // In the api role most requests only wait on the gateway (up to 7 s each), so it gets more threads: waiting, not working (T-746).
+            int threads = forward == null ? 6 : FORWARDING_THREADS;
+            server.setExecutor(new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(64), new ThreadPoolExecutor.CallerRunsPolicy()));
             server.start();
             log.info("Internal API listening on port {}", port);
         } catch (IOException e) {

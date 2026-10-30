@@ -70,7 +70,7 @@ class DashboardAccessTest {
         Member member = mock(Member.class);
         when(guild.getIdLong()).thenReturn(HOME);
         when(config.getGuildId()).thenReturn(HOME);
-        DashboardAccess access = new DashboardAccess(filter, groups, config);
+        DashboardAccess access = new DashboardAccess(filter, groups, config, new OwnerOverride(mock(com.runeclans.bot.notice.BotOwners.class)));
 
         when(groups.isMember(guild, member, PermissionGroup.EVENT_COORDINATOR)).thenReturn(true);
         assertTrue(access.isEventCoordinator(guild, member));

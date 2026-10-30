@@ -37,7 +37,7 @@ class SkillWeekAdminApiTest {
         when(service.available()).thenReturn(true);
         when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
         api.save(GUILD, ADMIN, body(true, 9, 15));
-        verify(repository).save(GUILD, true, List.of(9, 15), ADMIN);
+        verify(repository).save(GUILD, true, List.of(9, 15), com.runeclans.bot.events.SkillWeekRepository.Options.OFF, ADMIN);
         verify(service).open(eq(GUILD), any());
     }
 
@@ -47,11 +47,65 @@ class SkillWeekAdminApiTest {
         TicketAdminApi.ApiError noHub = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(true, 9)));
         assertEquals(400, noHub.status);
         assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(false, 99)));
-        verify(repository, never()).save(anyLong(), anyBoolean(), any(), anyLong());
+        verify(repository, never()).save(anyLong(), anyBoolean(), any(), any(), anyLong());
         // off needs no hub
         when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
         api.save(GUILD, ADMIN, body(false));
-        verify(repository).save(GUILD, false, List.of(), ADMIN);
+        verify(repository).save(GUILD, false, List.of(), com.runeclans.bot.events.SkillWeekRepository.Options.OFF, ADMIN);
         verify(service, never()).open(anyLong(), any());
+    }
+    @Test
+    void aVoteNeedsTwoSkillsWhenSwitchedOn() {
+        when(service.available()).thenReturn(true);
+        TicketAdminApi.ApiError one = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(true, 9).put("mode", "vote")));
+        assertEquals(400, one.status);
+        assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(true, 9).put("mode", "pick")));
+        verify(repository, never()).save(anyLong(), anyBoolean(), any(), any(), anyLong());
+        when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
+        api.save(GUILD, ADMIN, body(true, 9, 15).put("mode", "vote"));
+        verify(repository).save(GUILD, true, List.of(9, 15),
+                new com.runeclans.bot.events.SkillWeekRepository.Options(com.runeclans.bot.events.SkillWeekRepository.Mode.VOTE, null, false), ADMIN);
+    }
+    @Test
+    void theAnnouncementChannelMustBeOneTheBotCanPostIn() {
+        net.dv8tion.jda.api.entities.Guild guild = Mockito.mock(net.dv8tion.jda.api.entities.Guild.class);
+        net.dv8tion.jda.api.entities.Member actor = Mockito.mock(net.dv8tion.jda.api.entities.Member.class);
+        var channel = Mockito.mock(net.dv8tion.jda.api.entities.channel.concrete.TextChannel.class);
+        long channelId = Long.parseLong("6".repeat(18));
+        when(guild.getIdLong()).thenReturn(GUILD);
+        when(actor.getIdLong()).thenReturn(ADMIN);
+        when(channel.getName()).thenReturn("announcements");
+        when(guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId)).thenReturn(channel);
+        DataObject sent = body(false, 9).put("announceChannelId", String.valueOf(channelId));
+
+        when(repository.settings(GUILD)).thenReturn(SkillWeekRepository.Settings.OFF);
+        when(channel.canTalk()).thenReturn(false);
+        TicketAdminApi.ApiError cant = assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "PUT", new String[]{"skill-week"}, () -> sent));
+        assertEquals(400, cant.status);
+        assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "PUT", new String[]{"skill-week"},
+                () -> body(false, 9).put("announceChannelId", "1".repeat(18))), "not a channel of this server");
+        verify(repository, never()).save(anyLong(), anyBoolean(), any(), any(), anyLong());
+
+        when(channel.canTalk()).thenReturn(true);
+        when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
+        api.route(guild, actor, "PUT", new String[]{"skill-week"}, () -> sent);
+        verify(repository).save(GUILD, false, List.of(9),
+                new SkillWeekRepository.Options(SkillWeekRepository.Mode.ROTA, channelId, false), ADMIN);
+    }
+
+    @Test
+    void aSavedChannelTheBotLostDoesNotBlockOtherChanges() {
+        net.dv8tion.jda.api.entities.Guild guild = Mockito.mock(net.dv8tion.jda.api.entities.Guild.class);
+        net.dv8tion.jda.api.entities.Member actor = Mockito.mock(net.dv8tion.jda.api.entities.Member.class);
+        long channelId = Long.parseLong("6".repeat(18));
+        when(guild.getIdLong()).thenReturn(GUILD);
+        when(actor.getIdLong()).thenReturn(ADMIN);
+        SkillWeekRepository.Options saved = new SkillWeekRepository.Options(SkillWeekRepository.Mode.ROTA, channelId, false);
+        when(repository.settings(GUILD)).thenReturn(new SkillWeekRepository.Settings(true, List.of(9), 0, ADMIN, saved));
+        when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
+
+        api.route(guild, actor, "PUT", new String[]{"skill-week"}, () -> body(false, 9).put("announceChannelId", String.valueOf(channelId)));
+        verify(repository).save(GUILD, false, List.of(9), saved, ADMIN);
+        verify(guild, never()).getChannelById(eq(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class), anyLong());
     }
 }

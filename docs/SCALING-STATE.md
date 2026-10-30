@@ -14,6 +14,19 @@ Nothing here changes behaviour. It is the checklist the later steps work from.
 | **B2** roles: `BOT_ROLE=gateway` and `BOT_ROLE=api` (default `all` = today) | *gateway*: Discord login, events, interactions, outbox drain. *api*: internal HTTP API and gateway-free schedules | gateway 1, api 2-3 behind a load balancer |
 | **B3** shard sets: several gateway processes, each `SHARD_RANGE` of `SHARD_COUNT` | as B2, with one gateway process per shard set | gateway N, api 2-3 |
 
+`BOT_ROLE` exists since T-670 (`config/BotRole`, `discord/RestOnlyJda`): `api` logs in REST-only and only queues outbox jobs. Every lane names its owner (T-702), and since T-746 the api role passes routes that need servers or members on to the gateway, so a split can run (section 1.1).
+
+### 1.1 Running B2 (T-746)
+
+- **How the api process answers the website:** it has no servers or members, so `internal/GatewayForward` checks the caller's secret (or the module's own check), then passes the request on to the gateway process's internal API (`GATEWAY_INTERNAL_URL`, private network, plain http: keep that port off the public network) and hands back its status, headers and body (lengths are recomputed; hop-by-hop headers dropped): the website gets what one process says. Bodies over 16 MB are refused (413). A passed-on request carries `X-RC-Hop`; an api process that receives one answers 508, so a `GATEWAY_INTERNAL_URL` pointing at an api process can't loop. The api role's internal API has 32 worker threads (forwards mostly wait). Only routes that need no Discord state are answered in the api process itself: stored pictures (`/internal/image/`, `/internal/wheel-gif/`, read from Postgres by token) and `/metrics` (each process's own). A route joins that list only once its handler is known to read nothing from the gateway's cache.
+- **Gateway outage:** no connection, or a read (GET/HEAD) with no answer within 7 s (the website gives up at 8 s), is 503 "try again", never "not in that server". A change (POST, PUT, PATCH, DELETE) that was sent but got no answer in time is 503 with code `GATEWAY_NO_ANSWER`: the gateway may still be carrying it out, so the website must not repeat it blindly. The gateway's own 503s (a shard still connecting, Discord slow) pass through as they are.
+- **What a split buys today:** the api-owned lanes (database work) and the stored pictures move off the gateway, and api replicas can restart without touching the gateway. Website routes still cost the gateway the same work. Moving more routes to the api side is per route, later.
+- **M6 for B2:** dashboard jobs with in-memory progress (event space, wrap-up export, role backfill) run where their route runs, so in the one gateway process; F4 is only needed once there is more than one gateway (B3).
+- **B3 later:** one `GATEWAY_INTERNAL_URL` assumes one gateway process. Several shard sets need the route sent to the process running that server's shard.
+- **Start-up checks** (`BotRole.checkedForStart`): both split roles need `BOT_CACHE_NOTIFY=true`, `INTERNAL_API_SECRET` and `GUILD_ID`; `api` needs `GATEWAY_INTERNAL_URL` as an http(s) address with a host; a `BOT_ROLE` that isn't a role stops the process. `BotRole.splitReady()` is a kill switch: false refuses every split role again.
+- **`onJdaReady` listeners in the api role** (checked for T-746): all of them either keep the JDA for later, or start repeating work on a lane (so `LaneOwners` decides where it runs), except these one-off steps, all harmless without a gateway: the skill and tracking icon lists are read once (`EmojiUploads`: no uploads), Linked Roles re-sends its metadata schema (the same idempotent `PUT` as from the gateway), `PluginXpTracker` sets two in-memory switches, `DevHelpSetup` loops over the (empty) server list on a dev bot, the internal API starts, and the outbox only queues.
+- **Railway, for Drake when wanted:** one bot service stays as the gateway (`BOT_ROLE=gateway`, `BOT_CACHE_NOTIFY=true`, its internal API port reachable on the private network only); a second service from the same image runs `BOT_ROLE=api`, `BOT_CACHE_NOTIFY=true`, `GATEWAY_INTERNAL_URL=http://<gateway service>.railway.internal:<port>`, and the website's bot address points at the api service. The api process checks callers itself before passing requests on, so every secret a caller uses must be set on the api service as well as the gateway: `INTERNAL_API_SECRET`, `RUNELINK_DM_SECRET` (the hub's DM relay); the api's own `/metrics` needs `METRICS_ENABLED` and `METRICS_TOKEN` there too. Set the database's TCP keepalives before running two api replicas (`database/ApiLeaderElection`).
+
 Under B1 nothing in this list breaks: a `ShardManager` in one JVM still sees every server. The decisions below matter for B2 and B3.
 
 ## 2. Decision key
@@ -40,7 +53,7 @@ These are the items that break or misbehave with a second process. Each maps to 
 | M6 | Long-running website jobs and their progress | `EventSpaceOps.jobs` / `locks` / `pending`, `EventWrapupOps.exports`, `RoleSyncBackfill.progress` | The dashboard starts a job on one `api` replica and polls progress every two seconds; the next poll can land on another replica that knows nothing ("no job"). The per-event `ReentrantLock` does not stop a second replica. | **Move to Postgres**: a small job table (state, done, total, message, finished_at) and `pg_advisory_xact_lock` per event instead of the in-memory lock. |
 | M7 | Security rate limits for RuneLink | `LinkService` `WindowLimiter`s: `wrongCodesPerDiscord`, `codePerIpMinute`, `codePerIpHour`, `startPerIp`, `startPerRsn`, `startPerTracking`; `LinkDm` `dmPerIp`, `dmPerTracking` | These cap guessing of link codes and DM spam. With N `api` replicas behind a load balancer the real limit is N times the intended one. | **Move to Postgres**, done: `SharedWindowLimiter` keeps them in the link schema's `rate_window` table (one row per limiter and hashed key holding the hit times inside the window; one `INSERT ... ON CONFLICT DO UPDATE` per check, whose row lock makes racing replicas queue; old rows go in the hourly retention sweep on the `rsnlink-retention` lane). A database error refuses the route (500), as the route's own work needs the same database. The other `WindowLimiter` uses (token and alias routes, web account) stay per process. |
 | M8 | Hiscores read budget for XP verification | `XpVerifier.globalReads` (and its `cache`), `RsnLinkModule` lane `rsnlink-verify` | Two workers would each spend the full public-read budget and check the same claims. | **One owner** (`api` role). The claims themselves are already in Postgres (`PgVerifyStore`). |
-| M9 | "Server not visible" treated as "server gone" | `PollCloser` (clears the poll's schedule), `TwitchService.announce` (claims, then finds no channel, alert lost), `GuildRetentionService.sweep` (uses `getGuildById` as proof of absence), other lanes that skip a `null` guild | Under B3 a process sees only its own shards' servers, and under B2 the `api` role may have no gateway at all. A `null` from `getGuildById` then means "not mine", not "the bot left". | **One owner** per lane plus a shard check: add one helper (`ShardRouting.owns(guildId)`) and only treat `null` as "gone" for servers this process owns. Retention decides "gone" from the stored departure row alone. |
+| M9 | "Server not visible" treated as "server gone" | `PollCloser` (clears the poll's schedule), `TwitchService.announce` (claims, then finds no channel, alert lost), `GuildRetentionService.sweep` (uses `getGuildById` as proof of absence), other lanes that skip a `null` guild | Under B3 a process sees only its own shards' servers, and under B2 the `api` role may have no gateway at all. A `null` from `getGuildById` then means "not mine", not "the bot left". | **One owner** per lane plus a shard check: `ShardRouting.owns(guildId)` and `ShardRouting.gone(guildId)` (T-700); `null` counts as "gone" only for a server this process owns, on a connected shard with no outage. Retention purges a departed server (departure row) only from the process that runs its shard. |
 | M10 | Settings caches with no TTL | see section 4.3 | The website saves a setting on the `api` process; the gateway process keeps the old value until it restarts (for example an automod rule removed on the dashboard keeps deleting messages). | **Invalidate across processes**: one `LISTEN/NOTIFY` channel (`bot_cache`, payload `area:guildId`) that every cache subscribes to, or a short TTL as a stop-gap. **Done** (F7, behind `BOT_CACHE_NOTIFY`, off by default): see section 4.5. |
 | M11 | Scheduler lanes that read rows, not servers | most lanes in section 5 | A lane that loops over database rows (reminders, giveaways, scheduled posts, ticket closes, premium expiry) runs in every process that starts it, so the same reminder fires twice. | **One owner**: each lane declares its role (section 5). Lanes whose work needs Discord run in the gateway and filter rows to their own shards (`guild_id` → shard). |
 
@@ -50,14 +63,14 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 
 | Follow-up | Covers | Work | Status |
 |---|---|---|---|
-| F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | open |
-| F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | open |
+| F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | done (T-702), changed: polling, its budget and the event trackers are owned by the **gateway** role (their targets are the servers the bot is in, which only the gateway can see), so with one gateway process there is one budget; the Hiscores verify lane is api-owned. RuneMetrics shuts down 2026-11-10, so no forwarding was built |
+| F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | done (T-696): each process claims under its own `ProcessId`, refreshes its claims every 20 s on the `discord-job-claims` lane, and any process recovers claims not refreshed for 2 min (never its own); claims are filtered to the shards the process runs |
 | F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (#473) |
-| F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | open |
+| F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | done (T-698): `jobs/JobRepository` keeps each slot's latest job in `younglings.dashboard_job` (an event's roles/channels and wrap-up steps, a server's role fix); a new job claims its slot under `pg_advisory_xact_lock`, a running job beats every 30 s and one silent for 2 minutes reads as failed and frees the slot. Finished exports live in `younglings.event_export_file` for an hour. The in-process `ReentrantLock` stays only to keep a job and that process's own role sync apart |
 | F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | done (T-699) |
-| F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | open |
+| F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | done (T-700): `ShardRouting.owns` / `ShardRouting.gone` (gone = this process runs the shard, it is connected, no outage, server missing). Poll end times, delayed autoroles, Twitch and Kick alerts and retention only drop work when `gone`; retention purges a departed server only from the process that runs its shard |
 | F7 | M10 | One `LISTEN/NOTIFY` channel (`bot_cache`) that the settings caches in section 4.3 subscribe to. | done (T-701); switch on with `BOT_CACHE_NOTIFY=true` in every process once there is more than one |
-| F8 | M11 | Each scheduler lane declares its `BOT_ROLE` (section 5); gateway lanes filter rows to their own shards. | open |
+| F8 | M11 | Each scheduler lane declares its `BOT_ROLE` (section 5); gateway lanes filter rows to their own shards. | done for B2 (T-702): `util/LaneOwners` names every lane's owner (a test fails on a lane missing from it); `BotScheduler` runs a repeating task only where its lane is owned; api-owned lanes run on the one api replica holding the leader lock (`database/ApiLeaderElection`). Staff digest and anniversaries skip servers on other shards. Filtering every gateway lane's rows to its own shards is left for B3 (several gateway processes, not built yet) |
 
 ## 4. Full inventory
 
@@ -84,6 +97,7 @@ Paths are under `src/main/java/com/runeclans/bot/`. "TTL" means the entry expire
 | Twitch "live now" snapshot | `twitch/TwitchService.lastLive`, `lastPoll` | display cache | Per process is fine; the post itself is claimed in Postgres (`repository.claim`). The lane is One owner (M11) |
 | Send-now guard | `tracking/TrackingConfigInteractionListener.sendNowInFlight` | double-click guard | Per shard set is fine |
 | Hub write retry queue | `runeclans/HubWriteQueue.held` | best-effort retry, documented as memory-only | Per process is fine (lost on restart by design) |
+| Hub member privacy sends (T-750) | `member/HubMemberPrivacy.held` | newest change per hub row, memory only, capped at 10,000 rows | Per process is fine (lost on restart by design: the member's next save or the hub's `MoveTool copy member-privacy` catches up). Each process sends only what it saved, so newest-wins holds within one process |
 | Hub site role reports | `hubsites/RoleReports.pending` | outgoing batch | Per shard set is fine (role changes come from the owning shard) |
 | Command usage counts | `commandusage/CommandUsageCounter` | counter flushed with `uses = uses + EXCLUDED.uses` | Per process is fine (flushes add up) |
 | Site invalidation batch | `internal/SiteInvalidator` (`pending`, `pendingGuilds`, static `instance`) | outgoing batch to the website | Per process is fine (each process announces its own writes) |
@@ -166,7 +180,7 @@ Paths are under `src/main/java/com/runeclans/bot/cachebus/`.
 
 | State | Where | Decision |
 |---|---|---|
-| Application emoji mentions and upload guard | `runescape/SkillEmojiCatalog`, `tracking/TrackingIconCatalog`, `runescape/GuildIconEmojiCatalog` (`uploadInFlight`) | Per process is fine for the cache. Emojis belong to the application, so two processes starting together can both upload the same missing emoji. One owner for uploads (gateway process holding shard 0); others only read the list. Low risk: only on a first boot after adding an icon. |
+| Application emoji mentions and upload guard | `runescape/SkillEmojiCatalog`, `tracking/TrackingIconCatalog`, `runescape/GuildIconEmojiCatalog` (`uploadInFlight`) | Per process is fine for the cache. Emojis belong to the application, so two processes starting together can both upload the same missing emoji. One owner for uploads (gateway process holding shard 0); others only read the list. Low risk: only on a first boot after adding an icon. Done (T-702): only the gateway's shard 0 creates or replaces emojis (`discord/EmojiUploads`); the api role reads the list once at start. `GuildIconEmojiCatalog` is unchanged: it uploads lazily, one emoji per server named after that server, only from the process that has the server in its cache, so two processes never upload the same one. |
 | Privileged intent flags | `config/PrivilegedIntents` (static) | Per process is fine (same application, same answer) |
 | Dev-bot posting switch | `tracking/TrackingPostingToggle`, `alerts/AutoPostRouter` (static `instance`) | Per process is fine on the dev bot (it is one process by design); production starts ON from `LIVE_ENV` everywhere |
 | Premium and billing switches | `premium/PremiumSwitch` (static `forced`), `premium/Billing` (static `instance`) | Per process is fine (`forced` is a test hook; the switch comes from the environment, the same in every process) |
@@ -183,7 +197,7 @@ Per process is fine: `runescape/SkillEmojiCatalog.ICON_BYTES`, `tracking/Trackin
 
 ## 5. Scheduler lanes
 
-Every `BotScheduler.lane(...)` and which process should own it once roles exist. "gateway (own shards)" means the lane needs Discord and must
+Every `BotScheduler.lane(...)` and which process should own it once roles exist. Since T-702 the code's table is `util/LaneOwners` (the source of truth; it differs from the first plan below where a lane turned out to read the server list: polling, clan sync, clan points, the hub feed, skill of the week, plugin XP points, seasons, draws, board updates and retention are gateway-owned). "gateway (own shards)" means the lane needs Discord and must
 filter its rows to the servers on this process's shards; "api" means exactly one owner (the `api` role, guarded by an advisory lock while it
 has more than one replica).
 
@@ -198,9 +212,11 @@ has more than one replica).
 | `event-tracker`, `plugin-xp-tracker` | `events/EventTracker`, `events/PluginXpTracker` | api, together (shared `runeSyncPlayers`) |
 | `rsnlink-verify`, `rsnlink-retention` | `rsnlink/bridge/RsnLinkModule` | api |
 | `rsnlink-hub-dm` | `rsnlink/bridge/HubDmButtons` | gateway (own shards) |
+| `community-command` | `hubsites/CommunityCommand` | gateway (own shards) |
 | `runeclans-feed` | `runeclans/RuneClansFeedPoller` | api (cursor in Postgres); posts through the outbox |
 | `hub-sites` | `hubsites/HubSiteReporter` | gateway (own shards) |
-| `discord-jobs` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 |
+| `request-cards` | `hubsites/RequestCards` | gateway (answers card presses); cards and roles go through the outbox (`hubsites/RequestCardJobs`) |
+| `discord-jobs`, `discord-job-claims` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 (claims per process, done) |
 | `ephemeral-lifecycle` | `discord/EphemeralLifecycle` | gateway (the process that answered) |
 | `event-board-panels`, `cohost-panels`, `event-signups` | `events/...` | gateway (own shards) |
 | `event-announcer-sweep` | `eventannounce/EventAnnounceService` | gateway (own shards) |
@@ -219,13 +235,19 @@ has more than one replica).
 | `twitch`, `kick`, `feeds` | `twitch/TwitchService`, `kick/KickService`, `feed/FeedService` | api fetches once; posts filtered to own shards (or sent through the outbox) |
 | `presence-members` | `presence/PresenceMemberLoader` | gateway (own shards) |
 | `linked-roles` | `linkedroles/LinkedRoles` | api |
+| `rank-weekly` | `internal/RankWeeklyScheduler` | gateway (Discord names and channels for the weekly congrats) |
 | `premium-expiry`, `billing-reconcile` | `premium/Premium`, `premium/Billing` | api |
 | `guild-retention` | `retention/GuildRetentionService` | api, see M9 |
 | `plugin-retention`, `message-log-purge`, `clan-site-cleanup` | `plugin/...`, `messagelog/...`, `clansite/...` | api (database only) |
 | `address-change-scheduler` | `clanprofile/SlugChangeScheduler` | api |
+| `clan-site-race` | `clansite/ClanSitePluginFeed` (the leaderboard race's hub reads) | api (website reads only) |
 | `command-usage` | `commandusage/CommandUsageListener` | every process (flushes add up) |
 | `phishing-list` | `automod/PhishingList` | every process (each needs the list) |
 | `debouncer`, `site-invalidator` | `internal/Debouncer`, `internal/SiteInvalidator` | every process (local batching) |
+| `hub-member-privacy` | `member/HubMemberPrivacy` | every process (sends the member privacy changes it saved to the hub, T-750) |
+| `job-heartbeat` | `jobs/JobRepository` | every process (keeps that process's own running dashboard jobs alive, T-698) |
+| `event-export-expiry` | `events/EventExportRepository` | api (database only: deletes expired wrap-up exports, T-698) |
+| `leagues` | `leagues/LeagueReporter`, `leagues/LeagueFeedPosts`, `leagues/LeagueCommand` | every process (reports a finished clan-vs-clan event's result to the hub from the process that finished it, T-759; turns the hub's league feed into outbox jobs and answers `/league` off the request thread, T-760: the posts themselves run through the Discord outbox in the shard's process) |
 
 Two thread pools sit outside `BotScheduler` and are covered by M6: `EventSpaceOps` (`event-space`) and `EventWrapupOps` (`event-wrapup`),
 plus the `RoleSyncBackfill` worker.

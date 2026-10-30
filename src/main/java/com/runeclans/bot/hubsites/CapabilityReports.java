@@ -47,8 +47,8 @@ final class CapabilityReports {
 
     /**
      * RuneClan Bot's capabilities, by the hub's fixed names (PLATFORM-DESIGN 4.2), plus {@code discord.feed} (reading the channels a site
-     * picks for its news feed) and the three the clan sites' Discord answers need ({@code SiteDiscordService}); presence and message
-     * reports only while their privileged intents are on.
+     * picks for its news feed), the three the clan sites' Discord answers need ({@code SiteDiscordService}) and {@code discord.requests}
+     * (request cards, {@code RequestCards}); presence and message reports only while their privileged intents are on.
      */
     static DataObject capabilities(boolean presence, boolean messageContent) {
         DataArray names = DataArray.empty().add("discord.post").add("discord.buttons").add("discord.roles.assign").add("discord.roles.report");
@@ -56,6 +56,8 @@ final class CapabilityReports {
         names.add("discord.feed").add("discord.channels.report");
         if (messageContent) names.add("discord.messages.report");
         names.add("discord.events.report");
+        // T-734: request cards for sites that pick RuneClan Bot ("Handle requests in Discord")
+        names.add("discord.requests");
         return DataObject.empty().put("capabilities", names);
     }
 }

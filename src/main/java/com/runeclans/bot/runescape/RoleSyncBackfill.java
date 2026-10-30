@@ -2,6 +2,7 @@ package com.runeclans.bot.runescape;
 
 import com.runeclans.bot.configure.GuildSettings;
 import com.runeclans.bot.configure.GuildSettingsService;
+import com.runeclans.bot.jobs.JobRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -16,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -49,7 +50,8 @@ public class RoleSyncBackfill {
     private final GuildSettingsService settings;
     private final ClanMemberRepository clanMembers;
     private final PlayerLinkService links;
-    private final Map<Long, Progress> progress = new ConcurrentHashMap<>();
+    /** Each server's latest run, shared by all bot processes so any of them can show its progress (T-698). */
+    private final JobRepository jobs;
     private final ExecutorService worker = Executors.newCachedThreadPool((ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "role-sync-backfill");
         thread.setDaemon(true);
@@ -58,7 +60,8 @@ public class RoleSyncBackfill {
     /** Replaceable so tests need not wait between changes. */
     long pauseMillis = PAUSE_MILLIS;
 
-    public RoleSyncBackfill(GuildSettingsService settings, ClanMemberRepository clanMembers, PlayerLinkService links) {
+    public RoleSyncBackfill(GuildSettingsService settings, ClanMemberRepository clanMembers, PlayerLinkService links, JobRepository jobs) {
+        this.jobs = jobs;
         this.settings = settings;
         this.clanMembers = clanMembers;
         this.links = links;
@@ -129,9 +132,12 @@ public class RoleSyncBackfill {
 
     // ---------- the button ----------
 
-    /** Progress of the last run in this server, or null if none ran since the bot started. */
+    /**
+     * Progress of the last run in this server, or null if none ran. A run whose process stopped part way reads as not running. Throws
+     * {@link IllegalStateException} when the database can't be reached, so a caller never reads that as "nothing running".
+     */
     public Progress progress(long guildId) {
-        return progress.get(guildId);
+        return jobs.latest(JobRepository.ROLE_FIX, guildId).map(row -> new Progress(row.total(), row.done(), row.failed(), row.live(jobs.now()))).orElse(null);
     }
 
     /**
@@ -141,23 +147,49 @@ public class RoleSyncBackfill {
     public String start(Guild guild, Set<Long> selected, long actorId) {
         if (selected.isEmpty()) return "Select at least one person.";
         if (selected.size() > MAX_PER_RUN) return "Select at most " + MAX_PER_RUN + " people at a time.";
-        Progress current = progress.get(guild.getIdLong());
+        Progress current;
+        try {
+            current = progress(guild.getIdLong());
+        } catch (IllegalStateException e) {
+            return "The bot could not reach its database just now. Try again in a moment.";
+        }
         if (current != null && current.running()) return "A fix is already running in this server.";
         Plan plan = plan(guild);
         if (plan.problem() != null) return plan.problem();
         List<Entry> todo = plan.entries().stream().filter(e -> selected.contains(e.userId())).toList();
         if (todo.isEmpty()) return "None of those people need a change any more.";
 
-        progress.put(guild.getIdLong(), new Progress(todo.size(), 0, 0, true));
-        worker.submit(() -> run(guild, todo, actorId));
+        JobRepository.Claim claim;
+        try {
+            claim = jobs.claim(JobRepository.ROLE_FIX, guild.getIdLong(), "role-fix");
+        } catch (IllegalStateException e) {
+            log.warn("Could not start the role fix in guild {}", guild.getIdLong(), e);
+            return "The bot could not reach its database just now. Try again in a moment.";
+        }
+        // the slot is taken across every bot process: a second press elsewhere is refused here
+        if (!claim.won()) return "A fix is already running in this server.";
+        save(guild.getIdLong(), claim.row(), todo.size(), 0, 0, true);
+        worker.submit(() -> run(guild, todo, actorId, claim.row()));
         return null;
     }
 
-    void run(Guild guild, List<Entry> todo, long actorId) {
+    /** Saves the run's progress; false once another run has taken the server's slot over (this one went quiet too long), so it must stop. */
+    private boolean save(long guildId, JobRepository.Row started, int total, int done, int failed, boolean running) {
+        JobRepository.Row row = new JobRepository.Row(started.runId(), started.kind(), running ? "running" : "done", done, total, failed, "", started.startedAt(),
+                running ? null : jobs.now(), jobs.now());
+        return running ? jobs.save(JobRepository.ROLE_FIX, guildId, row) : jobs.saveFinal(JobRepository.ROLE_FIX, guildId, row);
+    }
+
+    void run(Guild guild, List<Entry> todo, long actorId, JobRepository.Row started) {
         int done = 0;
         int failed = 0;
+        ScheduledFuture<?> alive = jobs.keepAlive(JobRepository.ROLE_FIX, guild.getIdLong(), started.runId());
+        boolean mine = true;
         try {
             for (Entry entry : todo) {
+                // before each change: a run that went quiet and was taken over stops before it touches anyone else
+                mine = save(guild.getIdLong(), started, todo.size(), done, failed, true);
+                if (!mine) break;
                 try {
                     Member member = guild.retrieveMemberById(entry.userId()).complete();
                     List<Role> add = entry.add().stream().map(guild::getRoleById).filter(r -> r != null).toList();
@@ -172,13 +204,18 @@ public class RoleSyncBackfill {
                     log.debug("Role fix: could not change user {}: {}", entry.userId(), e.getMessage());
                     failed++;
                 }
-                progress.put(guild.getIdLong(), new Progress(todo.size(), done, failed, true));
+                mine = save(guild.getIdLong(), started, todo.size(), done, failed, true);
+                if (!mine) {
+                    log.warn("Role fix in guild {}: another run took over after this one went quiet; stopping", guild.getIdLong());
+                    break;
+                }
                 Thread.sleep(pauseMillis);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            progress.put(guild.getIdLong(), new Progress(todo.size(), done, failed, false));
+            alive.cancel(false);
+            if (mine) save(guild.getIdLong(), started, todo.size(), done, failed, false);
         }
     }
 }

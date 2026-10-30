@@ -12,6 +12,7 @@ import com.runeclans.bot.commands.signup.SignupService;
 import com.runeclans.bot.commands.signup.SignupSession;
 import com.runeclans.bot.commands.signup.SubmissionField;
 import com.runeclans.bot.discord.DiscordLookups;
+import com.runeclans.bot.member.HubMemberPrivacy;
 import com.runeclans.bot.member.MemberProfileRepository;
 import com.runeclans.bot.permission.MemberAccess;
 import com.runeclans.bot.member.MemberProfileRepository.Goal;
@@ -66,6 +67,7 @@ public class MemberApi {
             Permission.MANAGE_EVENTS, Permission.CREATE_GUILD_EXPRESSIONS, Permission.MANAGE_GUILD_EXPRESSIONS);
 
     private final MemberProfileRepository repository;
+    private final HubMemberPrivacy hubPrivacy;
     private final PlayerLinkRepository links;
     private final PollService pollService;
     private final SignupService signupService;
@@ -78,6 +80,7 @@ public class MemberApi {
     private final MemberEventsApi events;
     private final HighlightMemberApi highlights;
     private final ChatLevelMemberApi chatLevel;
+    private final SkillWeekMemberApi skillWeek;
     private final DiscordOutbox outbox;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
@@ -85,8 +88,10 @@ public class MemberApi {
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
                      Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events,
-                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel, DiscordOutbox outbox) {
+                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel, DiscordOutbox outbox, SkillWeekMemberApi skillWeek, HubMemberPrivacy hubPrivacy) {
+        this.hubPrivacy = hubPrivacy;
         this.outbox = outbox;
+        this.skillWeek = skillWeek;
         this.highlights = highlights;
         this.chatLevel = chatLevel;
         this.rsLinks = rsLinks;
@@ -187,6 +192,8 @@ public class MemberApi {
                 };
                 case "highlights/ignore" -> method.equals("POST") ? highlights.ignore(guild, userId, body) : null;
                 case "level" -> method.equals("GET") ? chatLevel.get(guild, userId) : null;
+                case "skill-week/vote" -> method.equals("GET") ? skillWeek.get(guild, userId) : method.equals("POST") ? skillWeek.vote(guild, userId, body) : null;
+                case "skill-week/auto" -> method.equals("GET") ? skillWeek.auto(guild, userId) : method.equals("POST") ? skillWeek.setAuto(guild, userId, body) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
                 case "signups/leave" -> method.equals("POST") ? leaveSignup(guild, userId, body) : null;
@@ -333,11 +340,15 @@ public class MemberApi {
             pinned = id;
         }
 
-        repository.saveProfile(new Profile(guild.getIdLong(), userId, bio, accent, pinned,
+        Profile saved = new Profile(guild.getIdLong(), userId, bio, accent, pinned,
                 body.getBoolean("hideAdventureLog", current.hideAdventureLog()), body.getBoolean("hideFromLeaderboards", current.hideFromLeaderboards()),
                 body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents()), body.getBoolean("hideDiscordLink", current.hideDiscordLink()),
-                chose, body.getBoolean("hideRecap", current.hideRecap())));
+                chose, body.getBoolean("hideRecap", current.hideRecap()));
+        repository.saveProfile(saved);
         cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists) — cleared after the save so nothing re-caches the old answer
+        // the hub's copy (T-750), sent on its own lane: only a save that names a privacy toggle changes what the hub holds
+        if (PRIVACY_KEYS.stream().anyMatch(body::hasKey))
+            hubPrivacy.memberSaved(guild.getIdLong(), userId, saved.hideFromLeaderboards(), saved.hideAdventureLog(), saved.hideDiscordLink());
         return getSettings(guild, userId);
     }
 

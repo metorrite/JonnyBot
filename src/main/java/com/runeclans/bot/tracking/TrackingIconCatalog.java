@@ -6,6 +6,10 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Icon;
 import net.dv8tion.jda.api.entities.emoji.ApplicationEmoji;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
+import com.runeclans.bot.config.BotRole;
+import com.runeclans.bot.discord.EmojiUploads;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -169,8 +173,19 @@ public class TrackingIconCatalog extends ListenerAdapter {
 
     @Override
     public void onReady(ReadyEvent event) {
-        JDA jda = event.getJDA();
-        Map<String, String> storedHashes = hashRepository.getAllHashes();
+        sync(event.getJDA());
+    }
+
+    /** The api role has no gateway, so no ReadyEvent: it reads the emoji list once its REST-only connection is up (T-702). */
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        if (!BotRole.current().gateway()) sync(event.getJda());
+    }
+
+    private void sync(JDA jda) {
+        boolean upload = EmojiUploads.mayUpload(jda);
+        // only an uploader compares hashes (to replace a changed icon); the others just pick up what exists
+        Map<String, String> storedHashes = upload ? hashRepository.getAllHashes() : Map.of();
 
         jda.retrieveApplicationEmojis().queue(existing -> {
             Map<String, ApplicationEmoji> byName = existing.stream()
@@ -178,15 +193,15 @@ public class TrackingIconCatalog extends ListenerAdapter {
 
             List<String> tooLarge = new ArrayList<>();
             DROP_PATHS.forEach((key, path) ->
-                    syncEmoji(jda, byName, storedHashes, "d_" + key, path, mention -> dropMentions.put(key, mention), tooLarge));
+                    syncEmoji(jda, upload, byName, storedHashes, "d_" + key, path, mention -> dropMentions.put(key, mention), tooLarge));
             CATEGORY_PATHS.forEach((key, path) ->
-                    syncEmoji(jda, byName, storedHashes, "cat_" + key, path, mention -> categoryMentions.put(key, mention), tooLarge));
+                    syncEmoji(jda, upload, byName, storedHashes, "cat_" + key, path, mention -> categoryMentions.put(key, mention), tooLarge));
             BOSS_PATHS.forEach((key, path) ->
-                    syncEmoji(jda, byName, storedHashes, "b_" + key, path, mention -> bossMentions.put(key, mention), tooLarge));
+                    syncEmoji(jda, upload, byName, storedHashes, "b_" + key, path, mention -> bossMentions.put(key, mention), tooLarge));
             RANK_PATHS.forEach((order, path) ->
-                    syncEmoji(jda, byName, storedHashes, "rank_" + order, path, mention -> rankMentions.put(order, mention), tooLarge));
-            syncEmoji(jda, byName, storedHashes, "cat_default_drop", DEFAULT_DROP_PATH, mention -> defaultDropMention = mention, tooLarge);
-            syncEmoji(jda, byName, storedHashes, "cat_default_boss", DEFAULT_BOSS_PATH, mention -> defaultBossMention = mention, tooLarge);
+                    syncEmoji(jda, upload, byName, storedHashes, "rank_" + order, path, mention -> rankMentions.put(order, mention), tooLarge));
+            syncEmoji(jda, upload, byName, storedHashes, "cat_default_drop", DEFAULT_DROP_PATH, mention -> defaultDropMention = mention, tooLarge);
+            syncEmoji(jda, upload, byName, storedHashes, "cat_default_boss", DEFAULT_BOSS_PATH, mention -> defaultBossMention = mention, tooLarge);
             if (!tooLarge.isEmpty()) {
                 log.warn("Skipped uploading {} icon emoji(s) whose image is over Discord's {} KiB emoji limit (they keep their fallback icon): {}",
                         tooLarge.size(), MAX_EMOJI_BYTES / 1024, tooLarge);
@@ -247,9 +262,14 @@ public class TrackingIconCatalog extends ListenerAdapter {
      * {@link #FORCE_REFRESH_ONCE}. A file too big to ever upload is skipped (its name added to
      * {@code tooLarge}) instead of being sent to Discord.
      */
-    private void syncEmoji(JDA jda, Map<String, ApplicationEmoji> existing, Map<String, String> storedHashes,
+    private void syncEmoji(JDA jda, boolean upload, Map<String, ApplicationEmoji> existing, Map<String, String> storedHashes,
                             String name, String resource, Consumer<String> onMention, List<String> tooLarge) {
         ApplicationEmoji found = existing.get(name);
+        if (!upload) {
+            // only the gateway's shard 0 creates or replaces emojis (EmojiUploads); everyone else uses what is there
+            if (found != null) onMention.accept(found.getAsMention());
+            return;
+        }
         // With no emoji under this name the file only matters if it can be uploaded, so an oversized
         // one is not read past the limit; an existing emoji needs the whole file for its hash check.
         byte[] bytes = readResource(resource, found == null ? MAX_EMOJI_BYTES : Integer.MAX_VALUE);

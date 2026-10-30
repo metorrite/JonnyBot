@@ -15,6 +15,11 @@ public enum PollPriority {
     PREMIUM_CLAN,
     /** Everyone in a registered clan: the reason the tracking feeds exist, so the first of the recurring tiers. */
     CLAN,
+    /**
+     * Linked players in a community site (the hub's polling list, T-736) and in no registered clan: tracked fully like clan members, only
+     * served after them.
+     */
+    COMMUNITY,
     /** Anyone else who linked an account: their profile only needs to stay roughly current. */
     LINKED;
 
