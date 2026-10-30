@@ -28,9 +28,12 @@ class LeaguePostLogicTest {
         assertFalse(name.contains("[Claim your prize](https://evil.example)"), name);
         assertFalse(name.contains("**now**"), name);
         assertFalse(name.contains("@everyone"), name);
-        // JDA escapes the markdown tokens (a spoiler's pair as one), the brackets keep a masked link from forming, the ping is defanged
-        assertEquals("\\[Claim your prize\\](https://evil.example) \\*\\*now\\*\\* \\||@\u200Beveryone\\||", name);
+        // every markdown character is escaped, the brackets keep a masked link from forming, the ping is defanged
+        assertEquals("\\[Claim your prize\\](https://evil.example) \\*\\*now\\*\\* \\|\\|@\u200Beveryone\\|\\|", name);
         assertEquals("Winter cup", LeaguePostLogic.plain("Winter cup"), "a plain name is left as it is");
+        assertEquals("Winter cup # heading", LeaguePostLogic.plain("Winter cup\n# heading"), "a line break never starts a new line of the post");
+        assertEquals("\\*\\*", LeaguePostLogic.plain("**"), "a lone bold marker is escaped too");
+        assertEquals("a\\_b\\~c\\`d\\\\e", LeaguePostLogic.plain("a_b~c`d\\e"));
         assertEquals("", LeaguePostLogic.plain(null));
     }
 

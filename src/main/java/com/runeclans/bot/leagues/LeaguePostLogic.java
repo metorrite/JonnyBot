@@ -1,6 +1,5 @@
 package com.runeclans.bot.leagues;
 
-import net.dv8tion.jda.api.utils.MarkdownSanitizer;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
@@ -72,14 +71,27 @@ public final class LeaguePostLogic {
         }
     }
 
+    /** Every character Discord reads as markdown in a message; each gets a backslash, paired or not. */
+    private static final String MARKDOWN = "\\*_~`|[]";
+
     /**
-     * A name from another clan as Discord may show it: markdown escaped (bold, spoilers, quotes, code), masked links' brackets escaped and
-     * pings defanged, so a league, clan or round called {@code [Claim your prize](https://evil.example)} or {@code **x**} is shown as typed.
-     * The hub keeps names to plain words, and this holds here whatever the hub lets through.
+     * A name from another clan as Discord may show it: every markdown character escaped (bold, italics, spoilers, code, the brackets of a
+     * masked link; paired or alone, so a lone {@code **} can't join the template's own), pings defanged, line breaks folded into one line (no
+     * line of a post starts with a heading or a list the name brought). A league, clan or round called
+     * {@code [Claim your prize](https://evil.example)} or {@code **x**} is shown as typed. The hub keeps names to plain words, and this
+     * holds here whatever the hub lets through.
      */
     public static String plain(String name) {
         if (name == null) return "";
-        return MarkdownSanitizer.escape(name).replace("[", "\\[").replace("]", "\\]").replace("@", "@\u200B");
+        String oneLine = name.replaceAll("\\s+", " ").strip();
+        StringBuilder out = new StringBuilder(oneLine.length() + 8);
+        for (int i = 0; i < oneLine.length(); i++) {
+            char c = oneLine.charAt(i);
+            if (MARKDOWN.indexOf(c) >= 0) out.append('\\');
+            out.append(c);
+            if (c == '@') out.append('\u200B');
+        }
+        return out.toString();
     }
 
     /** Whether the hub's answer for a server ({@code GET /v1/guilds/{g}/leagues}) lists this league: only then is the post for that server. */

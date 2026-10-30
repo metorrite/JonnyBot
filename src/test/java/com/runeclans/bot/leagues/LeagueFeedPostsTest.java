@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -93,8 +94,9 @@ class LeagueFeedPostsTest {
         when(config.getClanSitesUrl()).thenReturn("https://runeclans.com");
         LeagueFeedPosts off = new LeagueFeedPosts(LeagueHub.off(), store, outbox, config);
         off.onHubFeed("league.round", entry());
-        verify(store, never()).channels();
-        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), anyString(), any());
+        // the fan-out runs on the lane, so a plain never() would pass before it: wait it out
+        verify(store, after(500).never()).channels();
+        verify(outbox, after(100).never()).enqueue(anyString(), anyLong(), anyLong(), anyString(), any());
     }
 
     @Test
@@ -103,6 +105,6 @@ class LeagueFeedPostsTest {
         posts.onHubFeed("league.round", entry());
         assertEquals(0, posts.fanOut(LeaguePostLogic.plan("league.round", entry()).orElseThrow()));
         posts.onHubFeed("league.round", DataObject.empty().put("data", DataObject.empty().put("leagueId", LEAGUE).put("event", "attached").put("number", 2)));
-        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), anyString(), any());
+        verify(outbox, after(500).never()).enqueue(anyString(), anyLong(), anyLong(), anyString(), any());
     }
 }

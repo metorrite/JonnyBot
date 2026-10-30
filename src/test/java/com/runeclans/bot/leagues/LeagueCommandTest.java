@@ -49,7 +49,7 @@ class LeagueCommandTest {
         assertEquals("league.heading[\\*\\*Winter\\*\\* cup, running]", lines[0]);
         assertEquals("league.round[1, \\[Boss night\\](https://evil.example), final]", lines[1]);
         lines = LeagueCommand.reply(hub, GUILD, true, null, TEXT).lines();
-        assertEquals("league.standing[1, \\||Alpha\\||, 7]", lines[1]);
+        assertEquals("league.standing[1, \\|\\|Alpha\\|\\|, 7]", lines[1]);
     }
 
     @Test
