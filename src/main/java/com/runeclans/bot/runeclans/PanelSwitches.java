@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Locale;
@@ -21,20 +20,21 @@ import java.util.function.Supplier;
 /**
  * The platform switches the owner sets in RuneClan Admin > Switches on the website (runeclans-hub docs/SWITCHES.md), as RuneClan Bot reads
  * them: {@code GET /v1/platform/switches} with the bot's first-party key, asked every {@value #EVERY_SECONDS} seconds on its own lane (never
- * in a Discord interaction or a website request). A failed ask keeps the last answer for {@value #KEEP_MINUTES} minutes; after that, and
- * before the first answer or with the hub client off, there is no panel value and every switch follows its Railway variable or its default.
+ * in a Discord interaction or a website request). A failed ask keeps the last answer until a new one comes (T-817 review: the three switches
+ * the bot reads guard data, so a hub outage must not send site writes back to the bot's old tables, drop hide-me saves, or swap the hub's
+ * beta lists for the bot's stale ones). Before the first answer, or with the hub client off, there is no panel value and every switch
+ * follows its Railway variable or its default.
  * <p>
  * The rule is the website's and the hub's: the bot's own Railway variable wins while set. For an on/off switch {@code on}/{@code true}/
- * {@code 1} holds it on and {@code off}/{@code false}/{@code 0} holds it off (the emergency kill switch); for a choice one of its values holds
- * it at that value; anything else or unset lets the panel decide. The panel can't see the bot's variables, so after "Hand over" on the panel
- * delete them on the bot's Railway service too.
+ * {@code 1}/{@code yes} holds it on and any other value holds it off (the emergency kill switch; a typo counts as off); for a choice one of
+ * its values holds it at that value and any other value at its default; only unset or blank lets the panel decide. The panel can't see the
+ * bot's variables, so after "Hand over" on the panel delete them on the bot's Railway service too.
  */
 @BConfiguration
 public class PanelSwitches {
     private static final Logger log = LoggerFactory.getLogger(PanelSwitches.class);
     static final String PATH = "/v1/platform/switches";
     static final long EVERY_SECONDS = 30;
-    static final long KEEP_MINUTES = 10;
 
     /** One ask of the hub: its {@code switches} object, or null when it couldn't answer. */
     interface Fetch {
@@ -43,14 +43,23 @@ public class PanelSwitches {
 
     private final Fetch fetch;
     private final Clock clock;
-    private volatile DataObject last;
-    private volatile Instant lastAt;
+    /** The last answer and when it came, as one snapshot. */
+    private record Answer(DataObject switches, Instant at) {}
+
+    private volatile Answer last;
+    /** The hub has stopped answering since the last answer (logged once per change, not on every round). */
+    private volatile boolean failing;
 
     /** The bot's instance. A factory, because the framework needs a service class to have exactly one constructor and tests use it. */
     @BService
     public static PanelSwitches panelSwitches(RuneClansHubClient hub) {
         if (!hub.enabled()) return none();
-        PanelSwitches switches = new PanelSwitches(() -> answerOf(hub.call("GET", PATH, null)), Clock.systemUTC());
+        PanelSwitches switches = new PanelSwitches(() -> {
+            RuneClansHubClient.Answer a = hub.call("GET", PATH, null);
+            DataObject answer = answerOf(a);
+            if (answer == null) throw new IllegalStateException(a == null ? "no answer" : "status " + a.status());
+            return answer;
+        }, Clock.systemUTC());
         ScheduledExecutorService lane = BotScheduler.lane("panel-switches");
         lane.scheduleWithFixedDelay(switches::refresh, 0, EVERY_SECONDS, TimeUnit.SECONDS);
         return switches;
@@ -84,29 +93,33 @@ public class PanelSwitches {
         }
     }
 
-    /** Asks the hub once; keeps the answer when there is one. Runs on the lane. */
+    /** Asks the hub once; keeps the answer when there is one, else the last one stands. Runs on the lane. */
     void refresh() {
         DataObject answer;
+        String why = null;
         try {
             answer = fetch.switches();
         } catch (RuntimeException e) {
             answer = null;
+            why = e.getMessage();
         }
         if (answer != null) {
-            last = answer;
-            lastAt = clock.instant();
-        } else if (lastAt != null && clock.instant().isAfter(lastAt.plus(Duration.ofMinutes(KEEP_MINUTES)))) {
-            if (last != null) log.warn("The hub's Switches panel hasn't answered for {} minutes: switches follow Railway or their defaults.", KEEP_MINUTES);
-            last = null;
+            last = new Answer(answer, clock.instant());
+            if (failing) log.info("The hub's Switches panel answers again.");
+            failing = false;
+        } else if (!failing) {
+            failing = true;
+            Answer kept = last;
+            if (kept == null) log.warn("The hub's Switches panel can't be read ({}): switches follow Railway or their defaults until it answers.", why);
+            else log.warn("The hub's Switches panel can't be read ({}): the last answer, from {}, stands until it answers.", why, kept.at());
         }
     }
 
-    /** The panel's value of switch {@code id} ("on", "hub"), or null when there is none to use (see the class comment). */
+    /** The panel's value of switch {@code id} ("on", "hub"), or null before the first answer (see the class comment). */
     public String value(String id) {
-        DataObject now = last;
-        Instant at = lastAt;
-        if (now == null || at == null || clock.instant().isAfter(at.plus(Duration.ofMinutes(KEEP_MINUTES)))) return null;
-        Object v = now.opt(id).orElse(null);
+        Answer now = last;
+        if (now == null) return null;
+        Object v = now.switches().opt(id).orElse(null);
         return v == null ? null : v.toString().strip().toLowerCase(Locale.ROOT);
     }
 
@@ -124,19 +137,29 @@ public class PanelSwitches {
     public Supplier<String> choice(String id, String railway, Collection<String> values, String fallback) {
         String raw = railway == null ? null : railway.strip().toLowerCase(Locale.ROOT);
         if (raw != null && values.contains(raw)) return () -> raw;
+        if (raw != null && !raw.isEmpty()) {
+            log.warn("A switch variable on Railway has a value that isn't one of its choices; it holds the switch at {}.", fallback);
+            return () -> fallback;
+        }
         return () -> {
             String v = value(id);
             return v != null && values.contains(v) ? v : fallback;
         };
     }
 
-    /** A Railway value as a hold: on/true/1 holds on, off/false/0 holds off, anything else (unset) lets the panel decide. */
+    /**
+     * A Railway value as a hold: on/true/1/yes holds on, off/false/0/no holds off, any other value set holds off too (before the panel, only
+     * an on word turned these on, so a typo stays the kill switch); unset or blank lets the panel decide.
+     */
     public static Boolean hold(String raw) {
-        if (raw == null) return null;
+        if (raw == null || raw.isBlank()) return null;
         return switch (raw.strip().toLowerCase(Locale.ROOT)) {
-            case "on", "true", "1" -> true;
-            case "off", "false", "0" -> false;
-            default -> null;
+            case "on", "true", "1", "yes" -> true;
+            case "off", "false", "0", "no" -> false;
+            default -> {
+                log.warn("A switch variable on Railway has a value that is neither on nor off; it holds the switch off.");
+                yield false;
+            }
         };
     }
 }

@@ -137,6 +137,27 @@ class HubMemberPrivacyTest {
     }
 
     @Test
+    void aSaveWhileTheSwitchIsOffDropsTheOlderHeldRowSoItIsNeverSentLater() {
+        List<Sent> sent = new ArrayList<>();
+        AtomicInteger down = new AtomicInteger(1);
+        java.util.concurrent.atomic.AtomicBoolean on = new java.util.concurrent.atomic.AtomicBoolean(true);
+        HubMemberPrivacy privacy = new HubMemberPrivacy((path, body) -> {
+            if (down.get() > 0) return DOWN;
+            sent.add(new Sent(path, DataObject.fromJson(body)));
+            return OK;
+        }, Runnable::run, on::get);
+        privacy.memberSaved(GUILD, USER, true, false, false); // "hide", held: the hub is down
+        assertEquals(1, privacy.held());
+        on.set(false);
+        privacy.memberSaved(GUILD, USER, false, false, false); // "show" while off: not sent, and the older "hide" is no longer the member's choice
+        assertEquals(0, privacy.held(), "the stale row is dropped");
+        on.set(true);
+        down.set(0);
+        privacy.flush();
+        assertTrue(sent.isEmpty(), "turning the switch on again never sends the older save");
+    }
+
+    @Test
     void sendsWaitForTheLaneNotTheCaller() {
         List<Runnable> lane = new ArrayList<>();
         AtomicInteger calls = new AtomicInteger();

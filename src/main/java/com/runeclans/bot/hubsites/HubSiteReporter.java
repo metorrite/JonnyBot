@@ -51,6 +51,8 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener, Hub
     private volatile JDA jda;
     private final RoleReports reports;
     private final CapabilityReports capabilities;
+    /** Capabilities and role holders were declared for the hub since clan sites came from it (start, or the panel moving them while the bot runs). */
+    private final java.util.concurrent.atomic.AtomicBoolean declared = new java.util.concurrent.atomic.AtomicBoolean();
 
     public HubSiteReporter(HubSites sites, RuneClansHubClient hub) {
         this.sites = sites;
@@ -58,16 +60,29 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener, Hub
         this.reports = new RoleReports(sites::mappedRoles, this::holders, this::send,
                 (delay, task) -> lane.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS));
         this.capabilities = new CapabilityReports((path, body) -> hub.write("PUT", path, body, HubSiteReporter::done));
+        // the Switches panel can move clan sites to the hub while the bot runs (T-817): declare then, not only on start
+        lane.scheduleWithFixedDelay(this::declareWhenMoved, 30, 30, TimeUnit.SECONDS);
     }
 
     @Override
     public void onReady(ReadyEvent event) {
         jda = event.getJDA();
         if (!sites.readsHub()) return;
-        lane.execute(() -> {
-            capabilities.start(Shards.guilds(event.getJDA()).stream().map(Guild::getIdLong).toList(), PrivilegedIntents.presence(), PrivilegedIntents.messageContent());
+        lane.execute(this::declareWhenMoved);
+    }
+
+    /** Once clan sites come from the hub (and Discord is ready), declares capabilities and reports role holders once. Runs on the lane. */
+    void declareWhenMoved() {
+        JDA ready = jda;
+        if (!sites.readsHub()) {
+            declared.set(false); // back on the bot: declare again if they move once more
+            return;
+        }
+        if (ready == null || !declared.compareAndSet(false, true)) return;
+        try {
+            capabilities.start(Shards.guilds(ready).stream().map(Guild::getIdLong).toList(), PrivilegedIntents.presence(), PrivilegedIntents.messageContent());
             int roles = 0;
-            for (Guild guild : Shards.guilds(event.getJDA())) {
+            for (Guild guild : Shards.guilds(ready)) {
                 try {
                     roles += reports.all(guild.getIdLong());
                 } catch (RuntimeException e) {
@@ -75,7 +90,9 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener, Hub
                 }
             }
             log.info("RuneClans hub: declared capabilities and reported {} mapped role(s)", roles);
-        });
+        } catch (RuntimeException e) {
+            log.warn("Declaring RuneClan Bot's capabilities to the hub failed: {}", e.getClass().getSimpleName());
+        }
     }
 
     @Override

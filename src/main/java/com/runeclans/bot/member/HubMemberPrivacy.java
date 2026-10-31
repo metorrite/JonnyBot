@@ -72,7 +72,7 @@ public class HubMemberPrivacy {
         ScheduledExecutorService lane = BotScheduler.lane("hub-member-privacy");
         HubMemberPrivacy privacy = forHub(hub, lane, panel.toggle(SWITCH_ID, railway));
         lane.scheduleWithFixedDelay(privacy::flush, RETRY_SECONDS, RETRY_SECONDS, TimeUnit.SECONDS);
-        if (privacy.on()) log.info("Member privacy changes are sent to the RuneClans hub.");
+        log.info("Member privacy changes go to the RuneClans hub while its switch is on ({} on Railway, else the Switches panel).", SETTING_ENV);
         return privacy;
     }
 
@@ -138,7 +138,13 @@ public class HubMemberPrivacy {
     }
 
     private void send(String path, String body) {
-        if (!on()) return;
+        if (!on()) {
+            // off: nothing is sent, and an older save held for this row is dropped, so turning the switch on later never sends a stale one
+            synchronized (this) {
+                held.remove(path);
+            }
+            return;
+        }
         synchronized (this) {
             if (!held.containsKey(path) && held.size() >= MAX_HELD) {
                 log.warn("Too many member privacy changes wait for the hub ({}): one more was dropped.", MAX_HELD);

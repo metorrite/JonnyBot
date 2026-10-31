@@ -170,4 +170,23 @@ class GateSourceTest {
         assertTrue(GateSource.on(" on "));
         assertTrue(GateSource.on("TRUE"));
     }
+
+    @Test
+    void theBotsGatesFollowThePanelsBetaAccessSwitchUnlessRailwayHoldsIt() {
+        com.runeclans.bot.config.BotConfig config = org.mockito.Mockito.mock(com.runeclans.bot.config.BotConfig.class);
+        RuneClansHubClient hub = org.mockito.Mockito.mock(RuneClansHubClient.class);
+        org.mockito.Mockito.when(hub.enabled()).thenReturn(true);
+        com.runeclans.bot.beta.BetaGuildRepository beta = org.mockito.Mockito.mock(com.runeclans.bot.beta.BetaGuildRepository.class);
+        com.runeclans.bot.access.AccessGrantRepository grants = org.mockito.Mockito.mock(com.runeclans.bot.access.AccessGrantRepository.class);
+        com.runeclans.bot.siteaccess.SiteSwitchRepository switches = org.mockito.Mockito.mock(com.runeclans.bot.siteaccess.SiteSwitchRepository.class);
+        com.runeclans.bot.runeclans.PanelSwitches panelOn = com.runeclans.bot.runeclans.PanelSwitches.of(Map.of(GateSource.SWITCH_ID, "on"));
+        com.runeclans.bot.runeclans.PanelSwitches panelOff = com.runeclans.bot.runeclans.PanelSwitches.of(Map.of(GateSource.SWITCH_ID, "off"));
+
+        assertTrue(GateSource.gateSource(config, hub, panelOn, beta, grants, switches).fromHub(), "Railway unset: the panel's on");
+        assertFalse(GateSource.gateSource(config, hub, panelOff, beta, grants, switches).fromHub(), "Railway unset: the panel's off");
+        org.mockito.Mockito.when(config.getRuneClansSetting(GateSource.SETTING_ENV)).thenReturn("no");
+        assertFalse(GateSource.gateSource(config, hub, panelOn, beta, grants, switches).fromHub(), "any Railway value but an on word holds it off");
+        org.mockito.Mockito.when(config.getRuneClansSetting(GateSource.SETTING_ENV)).thenReturn("on");
+        assertTrue(GateSource.gateSource(config, hub, panelOff, beta, grants, switches).fromHub(), "Railway's on holds it on");
+    }
 }
