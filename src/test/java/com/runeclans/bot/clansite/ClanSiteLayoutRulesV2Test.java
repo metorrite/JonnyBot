@@ -755,4 +755,61 @@ class ClanSiteLayoutRulesV2Test {
         assertTrue(has(problems(v3), "another version"));
         assertNull(ClanSiteLayoutRules.clean(null, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
     }
+    // ---------- site type (plan C-9) ----------
+
+    @Test
+    void clanOnlyListMatchesTheWebsite() throws Exception {
+        URL file = ClanSiteLayoutRulesV2Test.class.getResource("/builder-v3/kinds/clan-only.json");
+        assertNotNull(file, "the builder-v3/kinds/clan-only.json fixture is on the test classpath");
+        DataArray list = DataArray.fromJson(Files.readString(Path.of(file.toURI()), StandardCharsets.UTF_8));
+        Set<String> website = new java.util.HashSet<>();
+        for (int i = 0; i < list.length(); i++) website.add(list.getString(i));
+        assertEquals(website, ClanSiteLayoutRulesV2.CLAN_ONLY_WIDGETS, "copy packages/builder/tests/fixtures/kinds/clan-only.json and update CLAN_ONLY_WIDGETS");
+    }
+
+    @Test
+    void communitySitesRefuseClanOnlyWidgets() throws Exception {
+        Path fullFeatures = fixtures("v2").stream().filter(p -> p.getFileName().toString().equals("full-features.json")).findFirst().orElseThrow();
+        DataObject layout = DataObject.fromJson(Files.readString(fullFeatures, StandardCharsets.UTF_8));
+        // a clan website, or one with no type (every site before plan C-9), takes the roster
+        assertNotNull(ClanSiteLayoutRules.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, "clan", new ArrayList<>()));
+        assertNotNull(ClanSiteLayoutRules.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, null, new ArrayList<>()));
+        List<String> problems = new ArrayList<>();
+        assertNull(ClanSiteLayoutRules.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, "community", problems));
+        assertEquals(1, problems.size(), problems.toString());
+        assertTrue(problems.get(0).endsWith("has a clan-only widget. Community websites have no clan roster or stats: remove it."), problems.get(0));
+        // without its clan-only widgets the same layout is a good community layout, stored as for a clan
+        DataObject community = withoutClanOnly(DataObject.fromJson(layout.toString()));
+        String clean = ClanSiteLayoutRules.clean(community, ClanSiteLayoutRulesV2.Limits.PREMIUM, "community", new ArrayList<>());
+        assertNotNull(clean);
+        assertEquals(ClanSiteLayoutRules.clean(community, ClanSiteLayoutRulesV2.Limits.PREMIUM, "clan", new ArrayList<>()), clean);
+        // the shape is still checked first: a broken community layout lists both kinds of problem
+        List<String> both = new ArrayList<>();
+        assertNull(ClanSiteLayoutRules.clean(DataObject.fromJson(layout.toString()).put("pages", DataArray.empty()), ClanSiteLayoutRulesV2.Limits.PREMIUM, "community", both));
+        assertTrue(has(both, "at least its Home page"), both.toString());
+    }
+
+    /** The layout with every clan-only widget taken out of its cell, as the website's layoutForKind does. */
+    private static DataObject withoutClanOnly(DataObject layout) {
+        DataArray pages = layout.getArray("pages");
+        for (int p = 0; p < pages.length(); p++) {
+            DataArray sections = pages.getObject(p).getArray("sections");
+            for (int s = 0; s < sections.length(); s++) {
+                DataArray rows = sections.getObject(s).getArray("rows");
+                for (int r = 0; r < rows.length(); r++) {
+                    DataArray cells = rows.getObject(r).getArray("cells");
+                    for (int c = 0; c < cells.length(); c++) {
+                        DataArray widgets = cells.getObject(c).getArray("widgets");
+                        DataArray kept = DataArray.empty();
+                        for (int w = 0; w < widgets.length(); w++) {
+                            DataObject widget = widgets.getObject(w);
+                            if (!ClanSiteLayoutRulesV2.CLAN_ONLY_WIDGETS.contains(widget.getString("type", ""))) kept.add(widget);
+                        }
+                        cells.getObject(c).put("widgets", kept);
+                    }
+                }
+            }
+        }
+        return layout;
+    }
 }
