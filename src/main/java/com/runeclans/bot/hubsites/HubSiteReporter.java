@@ -118,7 +118,8 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener, Hub
 
     /** The server whose role mappings this hub change may have changed, or null. */
     static Long remappedGuild(String kind, DataObject data) {
-        if (data == null || !(kind.equals("site.roles_changed") || kind.equals("feature.changed"))) return null;
+        // site.kind.changed (plan C-13): a clan site uses the clan's connections, a community site its own, so the mapped roles may change
+        if (data == null || !(kind.equals("site.roles_changed") || kind.equals("feature.changed") || kind.equals("site.kind.changed"))) return null;
         DataObject inner = data.optObject("data").orElse(null);
         if (inner == null) return null;
         if (kind.equals("feature.changed")) {

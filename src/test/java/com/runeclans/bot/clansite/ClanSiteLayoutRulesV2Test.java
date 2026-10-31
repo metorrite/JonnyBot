@@ -779,7 +779,10 @@ class ClanSiteLayoutRulesV2Test {
         assertEquals(1, problems.size(), problems.toString());
         assertTrue(problems.get(0).endsWith("has a clan-only widget. Community websites have no clan roster or stats: remove it."), problems.get(0));
         // without its clan-only widgets the same layout is a good community layout, stored as for a clan
-        DataObject community = withoutClanOnly(DataObject.fromJson(layout.toString()));
+        List<String> removed = new ArrayList<>();
+        DataObject community = ClanSiteLayoutRulesV2.withoutClanOnly(layout, removed);
+        assertEquals(1, removed.size(), removed.toString());
+        assertNull(ClanSiteLayoutRules.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, "community", new ArrayList<>()), "the original is left as it was");
         String clean = ClanSiteLayoutRules.clean(community, ClanSiteLayoutRulesV2.Limits.PREMIUM, "community", new ArrayList<>());
         assertNotNull(clean);
         assertEquals(ClanSiteLayoutRules.clean(community, ClanSiteLayoutRulesV2.Limits.PREMIUM, "clan", new ArrayList<>()), clean);
@@ -787,29 +790,5 @@ class ClanSiteLayoutRulesV2Test {
         List<String> both = new ArrayList<>();
         assertNull(ClanSiteLayoutRules.clean(DataObject.fromJson(layout.toString()).put("pages", DataArray.empty()), ClanSiteLayoutRulesV2.Limits.PREMIUM, "community", both));
         assertTrue(has(both, "at least its Home page"), both.toString());
-    }
-
-    /** The layout with every clan-only widget taken out of its cell, as the website's layoutForKind does. */
-    private static DataObject withoutClanOnly(DataObject layout) {
-        DataArray pages = layout.getArray("pages");
-        for (int p = 0; p < pages.length(); p++) {
-            DataArray sections = pages.getObject(p).getArray("sections");
-            for (int s = 0; s < sections.length(); s++) {
-                DataArray rows = sections.getObject(s).getArray("rows");
-                for (int r = 0; r < rows.length(); r++) {
-                    DataArray cells = rows.getObject(r).getArray("cells");
-                    for (int c = 0; c < cells.length(); c++) {
-                        DataArray widgets = cells.getObject(c).getArray("widgets");
-                        DataArray kept = DataArray.empty();
-                        for (int w = 0; w < widgets.length(); w++) {
-                            DataObject widget = widgets.getObject(w);
-                            if (!ClanSiteLayoutRulesV2.CLAN_ONLY_WIDGETS.contains(widget.getString("type", ""))) kept.add(widget);
-                        }
-                        cells.getObject(c).put("widgets", kept);
-                    }
-                }
-            }
-        }
-        return layout;
     }
 }
