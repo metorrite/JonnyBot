@@ -63,7 +63,7 @@ class GateSourceTest {
     }
 
     private static GateSource source(boolean on, Stub hub) {
-        return new GateSource(on, hub, null, () -> OWN_BETA, () -> OWN_GRANTS, () -> OWN_SWITCHES);
+        return new GateSource(() -> on, hub, null, () -> OWN_BETA, () -> OWN_GRANTS, () -> OWN_SWITCHES);
     }
 
     @Test
@@ -151,13 +151,13 @@ class GateSourceTest {
             sent.add(body);
             return new HubWriteQueue.Result(HubWriteQueue.Outcome.QUEUED, null);
         };
-        GateSource gates = new GateSource(true, new Stub(), writer, () -> OWN_BETA, () -> OWN_GRANTS, () -> OWN_SWITCHES);
+        GateSource gates = new GateSource(() -> true, new Stub(), writer, () -> OWN_BETA, () -> OWN_GRANTS, () -> OWN_SWITCHES);
         assertTrue(gates.clanVerified("Iron Legion", USER));
         DataObject body = DataObject.fromJson(sent.get(0));
         assertEquals("Iron Legion", body.getString("name"));
         assertEquals(Long.toString(USER), body.getString("verifiedBy"));
 
-        GateSource refused = new GateSource(true, new Stub(), b -> new HubWriteQueue.Result(HubWriteQueue.Outcome.REFUSED, null), () -> OWN_BETA, () -> OWN_GRANTS,
+        GateSource refused = new GateSource(() -> true, new Stub(), b -> new HubWriteQueue.Result(HubWriteQueue.Outcome.REFUSED, null), () -> OWN_BETA, () -> OWN_GRANTS,
                 () -> OWN_SWITCHES);
         assertFalse(refused.clanVerified("Iron Legion", USER), "refused: the bot's own copy still has it");
         assertFalse(gates.clanVerified(null, USER));

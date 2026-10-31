@@ -1,6 +1,7 @@
 package com.runeclans.bot.member;
 
 import com.runeclans.bot.member.MemberProfileRepository.PrivacyDefaults;
+import com.runeclans.bot.runeclans.PanelSwitches;
 import com.runeclans.bot.runeclans.RuneClansHubClient;
 import com.runeclans.bot.runeclans.RuneClansHubClient.Answer;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,26 +39,47 @@ class HubMemberPrivacyTest {
         HubMemberPrivacy.off().memberSaved(GUILD, USER, true, false, false);
         verify(hub, never()).call(anyString(), anyString(), anyString());
 
-        HubMemberPrivacy on = HubMemberPrivacy.forHub(hub, Runnable::run);
+        HubMemberPrivacy on = HubMemberPrivacy.forHub(hub, Runnable::run, () -> true);
         assertTrue(on.on());
         on.memberSaved(GUILD, USER, true, false, false);
         verify(hub).call("PUT", "/v1/guilds/" + GUILD + "/member-privacy/members/" + USER, HubMemberPrivacy.toggles(true, false, false));
         assertEquals(0, on.held());
 
-        // the bot's own factory: off unless the setting is on AND the hub client is on
+        // the bot's own factory: off unless the switch is on (Railway's setting first, else the panel) AND the hub client is on
         com.runeclans.bot.config.BotConfig config = mock(com.runeclans.bot.config.BotConfig.class);
+        PanelSwitches none = PanelSwitches.none();
+        PanelSwitches panelOn = PanelSwitches.of(Map.of(HubMemberPrivacy.SWITCH_ID, "on"));
         when(config.getRuneClansSetting(HubMemberPrivacy.SETTING_ENV)).thenReturn("off");
-        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub).on());
+        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub, none).on());
+        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub, panelOn).on(), "Railway's off wins over the panel");
         when(config.getRuneClansSetting(HubMemberPrivacy.SETTING_ENV)).thenReturn("on");
         when(hub.enabled()).thenReturn(false);
-        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub).on(), "the hub client off");
+        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub, none).on(), "the hub client off");
         when(hub.enabled()).thenReturn(true);
-        assertTrue(HubMemberPrivacy.hubMemberPrivacy(config, hub).on());
+        assertTrue(HubMemberPrivacy.hubMemberPrivacy(config, hub, none).on());
+        when(config.getRuneClansSetting(HubMemberPrivacy.SETTING_ENV)).thenReturn(null);
+        assertFalse(HubMemberPrivacy.hubMemberPrivacy(config, hub, none).on(), "unset on Railway and no panel answer: off");
+        assertTrue(HubMemberPrivacy.hubMemberPrivacy(config, hub, panelOn).on(), "unset on Railway: the panel decides (T-817)");
 
         assertFalse(HubMemberPrivacy.on(null));
         assertFalse(HubMemberPrivacy.on("off"));
         assertTrue(HubMemberPrivacy.on(" TRUE "));
         assertTrue(HubMemberPrivacy.on("on"));
+    }
+
+    @Test
+    void thePanelCanTurnItOnAndOffWhileTheBotRuns() {
+        RuneClansHubClient hub = mock(RuneClansHubClient.class);
+        when(hub.call(anyString(), anyString(), anyString())).thenReturn(OK);
+        java.util.concurrent.atomic.AtomicBoolean panel = new java.util.concurrent.atomic.AtomicBoolean(false);
+        HubMemberPrivacy privacy = HubMemberPrivacy.forHub(hub, Runnable::run, panel::get);
+        privacy.memberSaved(GUILD, USER, true, false, false);
+        verify(hub, never()).call(anyString(), anyString(), anyString());
+        assertEquals(0, privacy.held(), "nothing is kept while the switch is off");
+
+        panel.set(true);
+        privacy.memberSaved(GUILD, USER, true, false, false);
+        verify(hub).call("PUT", HubMemberPrivacy.memberPath(GUILD, USER), HubMemberPrivacy.toggles(true, false, false));
     }
 
     @Test
