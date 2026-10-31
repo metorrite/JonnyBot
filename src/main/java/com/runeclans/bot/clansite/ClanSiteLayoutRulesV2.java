@@ -225,7 +225,8 @@ public final class ClanSiteLayoutRulesV2 {
     /**
      * A copy of the layout with every clan-only widget taken out (plan C-13, a clan site going back to a community; the hub's
      * {@code ClanSiteLayoutRulesV2.withoutClanOnly}, kept in step): the cells stay, so the page keeps its shape. {@code removed} gets one
-     * "page title: widget type" line per widget taken out. A layout that isn't v2 comes back unchanged.
+     * "page title: widget type" line per widget taken out. A null layout, or one that isn't v2, is returned as it is (the same
+     * instance). Not called by the bot itself today (it holds only clan sites): it is the hub's rule, kept here so the two stay in step.
      */
     public static DataObject withoutClanOnly(DataObject layout, List<String> removed) {
         if (layout == null || layout.getInt("v", -1) != VERSION) return layout;
