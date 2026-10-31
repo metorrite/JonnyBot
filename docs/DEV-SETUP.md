@@ -209,6 +209,19 @@ Check the whole tree by hand: `gitleaks dir . --redact=100 --no-banner`.
 
 Checking the running bot without the browser: `python tools/dev_api.py GET events/12/space --actor <your discord user id>` calls the same internal admin routes the dashboard uses (it reads the secret from the run configuration and never prints it). A GET only reads; remember the dev bot sits in the real server, so POST/PUT/DELETE change real things.
 
+### Connect the dev bot to the local hub (T-811)
+
+Players link on the website, and those links live in the RuneClans hub. A dev bot without the hub client checks RuneSync's RuneLink
+assertions against its own old link keys, so every upload and the RuneSync clan page fail (the log now says so at start, and at most
+hourly when an assertion with an unknown key arrives). For local tests set, in the bot's `.env` (or its run configuration):
+
+- `RUNECLANS_HUB_ENABLED=true`
+- `RUNECLANS_HUB_URL=http://localhost:8090` (the local hub)
+- `RUNECLANS_HUB_API_KEY`: a first-party key made on the LOCAL hub (`POST /admin/apps` with the local hub's admin secret,
+  `firstParty: true`, the scopes listed in 3c). Never a live key.
+
+The hub's `tools/local_link_setup.py --bot-env <this repository>/.env` adds all three to `.env` when they are missing (it makes the key on the local hub and never prints it); run it once the local hub is up, then start the bot.
+
 ## 4b. Start everything with one command
 
 From this repository, in a terminal:
