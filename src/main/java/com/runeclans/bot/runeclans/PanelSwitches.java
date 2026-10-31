@@ -87,7 +87,8 @@ public class PanelSwitches {
     static DataObject answerOf(RuneClansHubClient.Answer a) {
         if (a == null || !a.ok() || a.json() == null || !a.json().hasKey("switches")) return null;
         try {
-            return a.json().getObject("switches");
+            DataObject switches = a.json().getObject("switches");
+            return switches.keys().isEmpty() ? null : switches; // an empty list is a broken hub (the real one lists every switch), not "all off"
         } catch (RuntimeException e) {
             return null;
         }

@@ -51,8 +51,8 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener, Hub
     private volatile JDA jda;
     private final RoleReports reports;
     private final CapabilityReports capabilities;
-    /** Capabilities and role holders were declared for the hub since clan sites came from it (start, or the panel moving them while the bot runs). */
-    private final java.util.concurrent.atomic.AtomicBoolean declared = new java.util.concurrent.atomic.AtomicBoolean();
+    /** When to declare: every shard's ready (as before T-817), and once when the panel moves clan sites to the hub while the bot runs. */
+    private final Declarer declarer;
 
     public HubSiteReporter(HubSites sites, RuneClansHubClient hub) {
         this.sites = sites;
@@ -61,24 +61,52 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener, Hub
                 (delay, task) -> lane.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS));
         this.capabilities = new CapabilityReports((path, body) -> hub.write("PUT", path, body, HubSiteReporter::done));
         // the Switches panel can move clan sites to the hub while the bot runs (T-817): declare then, not only on start
-        lane.scheduleWithFixedDelay(this::declareWhenMoved, 30, 30, TimeUnit.SECONDS);
+        this.declarer = new Declarer(sites::readsHub, () -> jda != null, this::declareAll);
+        lane.scheduleWithFixedDelay(declarer::tick, 30, 30, TimeUnit.SECONDS);
     }
 
     @Override
     public void onReady(ReadyEvent event) {
         jda = event.getJDA();
-        if (!sites.readsHub()) return;
-        lane.execute(this::declareWhenMoved);
+        lane.execute(declarer::ready);
     }
 
-    /** Once clan sites come from the hub (and Discord is ready), declares capabilities and reports role holders once. Runs on the lane. */
-    void declareWhenMoved() {
-        JDA ready = jda;
-        if (!sites.readsHub()) {
-            declared.set(false); // back on the bot: declare again if they move once more
-            return;
+    /**
+     * When to declare RuneClan Bot's capabilities and role holders to the hub. {@link #ready}: on every shard's {@code ReadyEvent} while clan
+     * sites come from the hub, as before T-817 (the last shard to be ready covers every server; a new session declares again). {@link #tick}:
+     * every 30 seconds, once after the Switches panel moves clan sites to the hub while the bot runs, and again after any move back and forth.
+     */
+    static final class Declarer {
+        private final java.util.function.BooleanSupplier readsHub;
+        private final java.util.function.BooleanSupplier discordReady;
+        private final Runnable declare;
+        private final java.util.concurrent.atomic.AtomicBoolean declared = new java.util.concurrent.atomic.AtomicBoolean();
+
+        Declarer(java.util.function.BooleanSupplier readsHub, java.util.function.BooleanSupplier discordReady, Runnable declare) {
+            this.readsHub = readsHub;
+            this.discordReady = discordReady;
+            this.declare = declare;
         }
-        if (ready == null || !declared.compareAndSet(false, true)) return;
+
+        void ready() {
+            if (!readsHub.getAsBoolean()) return;
+            declared.set(true);
+            declare.run();
+        }
+
+        void tick() {
+            if (!readsHub.getAsBoolean()) {
+                declared.set(false); // back on the bot: declare again if they move once more
+                return;
+            }
+            if (discordReady.getAsBoolean() && declared.compareAndSet(false, true)) declare.run();
+        }
+    }
+
+    /** Declares capabilities for every server the bot is in and reports their role holders. Runs on the lane. */
+    private void declareAll() {
+        JDA ready = jda;
+        if (ready == null) return;
         try {
             capabilities.start(Shards.guilds(ready).stream().map(Guild::getIdLong).toList(), PrivilegedIntents.presence(), PrivilegedIntents.messageContent());
             int roles = 0;

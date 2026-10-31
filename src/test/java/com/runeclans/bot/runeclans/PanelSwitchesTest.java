@@ -117,6 +117,8 @@ class PanelSwitchesTest {
         assertNull(PanelSwitches.answerOf(new RuneClansHubClient.Answer(500, DataObject.empty().put("switches", switches("x", "on")))),
                 "an error status is no answer even with a switches body");
         assertNull(PanelSwitches.answerOf(new RuneClansHubClient.Answer(200, DataObject.empty().put("other", 1))));
+        assertNull(PanelSwitches.answerOf(new RuneClansHubClient.Answer(200, DataObject.empty().put("switches", DataObject.empty()))),
+                "an empty switches list is no answer: the last one stands");
         assertEquals("on", PanelSwitches.answerOf(new RuneClansHubClient.Answer(200, DataObject.empty().put("switches", switches("x", "on"))))
                 .getString("x"));
         PanelSwitches throwing = new PanelSwitches(() -> {
