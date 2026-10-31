@@ -222,6 +222,39 @@ public final class ClanSiteLayoutRulesV2 {
         }
     }
 
+    /**
+     * A copy of the layout with every clan-only widget taken out (plan C-13, a clan site going back to a community; the hub's
+     * {@code ClanSiteLayoutRulesV2.withoutClanOnly}, kept in step): the cells stay, so the page keeps its shape. {@code removed} gets one
+     * "page title: widget type" line per widget taken out. A null layout, or one that isn't v2, is returned as it is (the same
+     * instance). Not called by the bot itself today (it holds only clan sites): it is the hub's rule, kept here so the two stay in step.
+     */
+    public static DataObject withoutClanOnly(DataObject layout, List<String> removed) {
+        if (layout == null || layout.getInt("v", -1) != VERSION) return layout;
+        DataObject copy = DataObject.fromJson(layout.toString());
+        DataArray pages = copy.optArray("pages").orElse(null);
+        if (pages == null) return copy;
+        for (int p = 0; p < pages.length(); p++) {
+            if (!pages.isType(p, DataType.OBJECT)) continue;
+            DataObject page = pages.getObject(p);
+            String title = page.getString("title", "").strip();
+            for (DataObject section : objects(page, "sections"))
+                for (DataObject row : objects(section, "rows"))
+                    for (DataObject cell : objects(row, "cells")) {
+                        DataArray widgets = cell.optArray("widgets").orElse(null);
+                        if (widgets == null) continue;
+                        List<Object> raw = widgets.toList();
+                        DataArray kept = DataArray.empty();
+                        for (int w = 0; w < widgets.length(); w++) {
+                            String type = widgets.isType(w, DataType.OBJECT) ? widgets.getObject(w).getString("type", "") : "";
+                            if (CLAN_ONLY_WIDGETS.contains(type)) removed.add((title.isEmpty() ? "A page" : title) + ": " + type);
+                            else kept.add(raw.get(w));
+                        }
+                        cell.put("widgets", kept);
+                    }
+        }
+        return copy;
+    }
+
     private static List<DataObject> objects(DataObject parent, String key) {
         DataArray array = parent.optArray(key).orElse(null);
         if (array == null) return List.of();

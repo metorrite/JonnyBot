@@ -37,7 +37,8 @@ import java.util.concurrent.TimeUnit;
  *   <li>on a member's role change, the holders of the mapped roles that changed ({@link RoleReports}: gathered for a few seconds, one
  *   report per role)</li>
  *   <li>when a server's role mappings change on the hub ({@code site.roles_changed}, or {@code feature.changed} for
- *   {@code requests.discord}, whose request handler roles join them: T-734), the holders of every mapped role there again</li>
+ *   {@code requests.discord}, whose request handler roles join them: T-734; or {@code site.kind.changed}, since a clan site uses the
+ *   clan's connections and a community site its own: T-741), the holders of every mapped role there again</li>
  * </ul>
  * Writes go through the hub client's queue, so a hub that is briefly down gets them a little later. Off: nothing here runs.
  */
@@ -118,7 +119,8 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener, Hub
 
     /** The server whose role mappings this hub change may have changed, or null. */
     static Long remappedGuild(String kind, DataObject data) {
-        if (data == null || !(kind.equals("site.roles_changed") || kind.equals("feature.changed"))) return null;
+        // site.kind.changed (plan C-13): a clan site uses the clan's connections, a community site its own, so the mapped roles may change
+        if (data == null || !(kind.equals("site.roles_changed") || kind.equals("feature.changed") || kind.equals("site.kind.changed"))) return null;
         DataObject inner = data.optObject("data").orElse(null);
         if (inner == null) return null;
         if (kind.equals("feature.changed")) {
